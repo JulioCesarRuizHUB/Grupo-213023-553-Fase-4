@@ -1,1 +1,196 @@
+# Materia: Programación
+# Grupo: 213023_553
+# Nombre de los estudiante: 
+#   Julio Cesar Ruiz Herrera 
+#   Daniel Augusto Zabala Cubides
+# Código Fuente: autoría propia
 
+
+import tkinter as tk
+from tkinter import messagebox, ttk
+
+# Clase principal del software
+class SoftwareFJ:
+
+    # Inicializar la ventana principal y los datos
+    def __init__(self, ventana):
+        self.ventana = ventana
+        self.ventana.title("SoftwareFJ")
+        self.ventana.state("zoomed")
+        self.clientes = [
+            {"nit": "900123456-1", "cliente": "Comercializadora Andina", "celular": "3001234567", "correo": "contacto@andina.com", "direccion": "Calle 10 # 20-30"},
+            {"nit": "901234567-2", "cliente": "Soluciones del Valle", "celular": "3102345678", "correo": "info@solucionesvalle.com", "direccion": "Carrera 5 # 12-40"},
+            {"nit": "1023456789", "cliente": "Laura Martínez", "celular": "3203456789", "correo": "laura.martinez@example.com", "direccion": "Avenida 3 # 45-18"},
+        ]
+        self._crear_interfaz()
+
+    # Crear la interfaz gráfica del software
+    def _crear_interfaz(self):
+
+        # Configuración de estilos
+        estilo = ttk.Style(self.ventana)
+        if "clam" in estilo.theme_names():
+            estilo.theme_use("clam")
+
+        
+        estilo.configure("TFrame", background="#f3f4f6")
+
+        # Estilos para titulos y subtítulos fuera de las pestañas
+        estilo.configure("Title.TLabel", font=("Arial", 28, "bold"), background="#f3f4f6")
+        estilo.configure("Subtitle.TLabel", font=("Arial", 12), background="#f3f4f6")
+
+        # Estilos para etiquetas de secciones y marcos de pestañas
+        estilo.configure("Section.TLabel", font=("Arial", 16, "bold"), background="#ffffff")
+        estilo.configure("TLabelframe.Label", font=("Arial", 11, "bold"))
+
+        # Estilos para botones
+        estilo.configure("Guardar.TButton", font=("Arial", 11, "bold"), padding=8, background="#1976d2", foreground="#ffffff")
+        estilo.map("Guardar.TButton", background=[("active", "#2e8b57"), ("pressed", "#247044")], foreground=[("active", "#ffffff"), ("pressed", "#ffffff")])    
+        
+        # Estilos para pestañas
+        estilo.configure("TNotebook", background="#f3f4f6", borderwidth=0)
+        estilo.configure("TNotebook.Tab", width=24, padding=(18, 11), font=("Arial", 12, "bold"), background="#d1d5db", foreground="#172b4d")
+        estilo.map( "TNotebook.Tab", background=[("selected", "#9ca3af"), ("active", "#c4c8ce")], foreground=[("selected", "#172b4d")])
+
+        # Estructura de la ventana principal
+        encabezado = ttk.Frame(self.ventana, padding=(24, 20))
+        encabezado.pack(fill="x")
+
+        # Títulos y subtítulos fuera de las pestañas
+        ttk.Label(encabezado, text="Software FJ", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(encabezado, text="Sofware para administracion servicios", style="Subtitle.TLabel").pack(anchor="w", pady=(3, 0))
+
+        # Crear las pestañas del software
+        pestañas = ttk.Notebook(self.ventana)
+        pestañas.pack(fill="both", expand=True, padx=24, pady=(0, 20))
+
+        secciones = (
+            ("Clientes", "Información de clientes"),
+            ("Salas", "Información de salas"),
+            ("Reserva de equipos", "Información de reservas de equipos"),
+            ("Asesorías", "Información de asesorías"),
+        )
+
+        # Crear cada pestaña y su contenido
+        for titulo, descripcion in secciones:
+            pagina = ttk.Frame(pestañas, padding=16)
+            pestañas.add(pagina, text=titulo)
+            if titulo == "Clientes":
+                self._crear_pestana_clientes(pagina)
+            else:
+                ttk.Label(
+                    pagina, text=descripcion, style="Section.TLabel"
+                ).pack(anchor="w")
+
+    # Crear la pestaña de clientes con formulario y tabla
+    def _crear_pestana_clientes(self, pagina):
+
+        # Configuración de la cuadrícula para la pestaña de clientes
+        pagina.columnconfigure(0, weight=1)
+        pagina.columnconfigure(1, weight=3)
+        pagina.rowconfigure(0, weight=1)
+
+        # Crear el formulario para registrar clientes
+        formulario = ttk.LabelFrame(pagina, text="Registrar cliente", padding=16, labelanchor="n")
+        formulario.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        formulario.columnconfigure(0, weight=1)
+
+        # Crear los campos del formulario para registrar clientes
+        self.campos_cliente = {}
+        campos = (
+            ("NIT / C.C.", "nit"),
+            ("Cliente", "cliente"),
+            ("Celular", "celular"),
+            ("Correo", "correo"),
+            ("Dirección", "direccion"),
+        )
+        for fila, (etiqueta, clave) in enumerate(campos):
+            ttk.Label(formulario, text=etiqueta).grid(
+                row=fila * 2, column=0, sticky="w", pady=(8, 3)
+            )
+            campo = ttk.Entry(formulario)
+            campo.grid(row=fila * 2 + 1, column=0, sticky="ew")
+            self.campos_cliente[clave] = campo
+
+        ttk.Button(formulario, text="Guardar cliente", command=self.crear_cliente, style="Guardar.TButton").grid(row=len(campos) * 2, column=0, sticky="ew", pady=(18, 0))
+
+        # Crear la tabla para mostrar los clientes almacenados
+        bloque_clientes = ttk.LabelFrame(pagina, text="Clientes almacenados", padding=12, labelanchor="n")
+        bloque_clientes.grid(row=0, column=1, sticky="nsew")
+        bloque_clientes.columnconfigure(0, weight=1)
+        bloque_clientes.rowconfigure(0, weight=1)
+
+        # Crear la tabla de clientes con encabezados
+        columnas = ("nit", "cliente", "celular", "correo", "direccion")
+        self.tabla_clientes = ttk.Treeview(bloque_clientes, columns=columnas, show="headings")
+        encabezados = {
+            "nit": "NIT / C.C.",
+            "cliente": "Cliente",
+            "celular": "Celular",
+            "correo": "Correo",
+            "direccion": "Dirección",
+        }
+        anchos = {
+            "nit": 120,
+            "cliente": 180,
+            "celular": 120,
+            "correo": 200,
+            "direccion": 200,
+        }
+
+        for columna in columnas:
+            self.tabla_clientes.heading(columna, text=encabezados[columna])
+            self.tabla_clientes.column(
+                columna, width=anchos[columna], minwidth=90, anchor="w"
+            )
+        # Crear la barra de desplazamiento vertical para la tabla de clientes
+        barra = ttk.Scrollbar(
+            bloque_clientes, orient="vertical", command=self.tabla_clientes.yview
+        )
+        self.tabla_clientes.configure(yscrollcommand=barra.set)
+        self.tabla_clientes.grid(row=0, column=0, sticky="nsew")
+        barra.grid(row=0, column=1, sticky="ns")
+        self._actualizar_tabla_clientes()
+
+    # Actualizar la tabla de clientes con los datos almacenados
+    def _actualizar_tabla_clientes(self):
+        for elemento in self.tabla_clientes.get_children():
+            self.tabla_clientes.delete(elemento)
+        for cliente in self.clientes:
+            self.tabla_clientes.insert("", "end", values=tuple(cliente[campo] for campo in ("nit", "cliente", "celular", "correo", "direccion")))
+
+    # Crear un nuevo cliente y agregarlo a la lista de clientes
+    def crear_cliente(self):
+        cliente = {
+            clave: campo.get().strip()
+            for clave, campo in self.campos_cliente.items()
+        }
+
+        # Mensaje de advertencia si los campos están incompletos
+        if not all(cliente.values()):
+            messagebox.showwarning("Datos incompletos", "Completa todos los campos para guardar el cliente.", parent=self.ventana)
+            return
+
+        # Mensaje de advertencia si el NIT ya existe en la lista de clientes
+        if any(registro["nit"] == cliente["nit"] for registro in self.clientes):
+            messagebox.showwarning("Identificación duplicada", "Ya existe un cliente con ese NIT / C.C.", parent=self.ventana)
+            return
+
+        # Agregar el nuevo cliente a la lista y actualizar la tabla
+        self.clientes.append(cliente)
+        self._actualizar_tabla_clientes()
+        for campo in self.campos_cliente.values():
+            campo.delete(0, tk.END)
+
+        # Mensaje de información indicando que el cliente se agregó correctamente
+        messagebox.showinfo("Cliente guardado", "El cliente se agregó correctamente.", parent=self.ventana)
+
+
+    # Ejecutar la aplicación
+    def ejecutar(self):
+        self.ventana.mainloop()
+
+# Punto de entrada del programa
+if __name__ == "__main__":
+    aplicacion = SoftwareFJ(tk.Tk())
+    aplicacion.ejecutar()
