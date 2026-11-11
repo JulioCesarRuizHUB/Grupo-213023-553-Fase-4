@@ -5,9 +5,9 @@
 #   Daniel Augusto Zabala Cubides
 # Código Fuente: autoría propia
 
-
 import tkinter as tk
 from tkinter import messagebox, ttk
+from datetime import datetime # <-- 1. Importación agregada para manejar horas
 
 # Clase principal del software
 class SoftwareFJ:
@@ -17,22 +17,27 @@ class SoftwareFJ:
         self.ventana = ventana
         self.ventana.title("SoftwareFJ")
         self.ventana.state("zoomed")
+        
+        # --- DATOS BASE ---
         self.clientes = [
             {"nit": "900123456-1", "cliente": "Comercializadora Andina", "celular": "3001234567", "correo": "contacto@andina.com", "direccion": "Calle 10 # 20-30"},
             {"nit": "901234567-2", "cliente": "Soluciones del Valle", "celular": "3102345678", "correo": "info@solucionesvalle.com", "direccion": "Carrera 5 # 12-40"},
             {"nit": "1023456789", "cliente": "Laura Martínez", "celular": "3203456789", "correo": "laura.martinez@example.com", "direccion": "Avenida 3 # 45-18"},
         ]
+        
+        # <-- 2. Nuevas variables agregadas para Salas
+        self.empleados = ["Carlos Gómez", "Ana Silva", "Luis Fernández"]
+        self.reservas_salas = [] 
+        
         self._crear_interfaz()
 
     # Crear la interfaz gráfica del software
     def _crear_interfaz(self):
-
         # Configuración de estilos
         estilo = ttk.Style(self.ventana)
         if "clam" in estilo.theme_names():
             estilo.theme_use("clam")
 
-        
         estilo.configure("TFrame", background="#f3f4f6")
 
         # Estilos para titulos y subtítulos fuera de las pestañas
@@ -50,7 +55,7 @@ class SoftwareFJ:
         # Estilos para pestañas
         estilo.configure("TNotebook", background="#f3f4f6", borderwidth=0)
         estilo.configure("TNotebook.Tab", width=24, padding=(18, 11), font=("Arial", 12, "bold"), background="#d1d5db", foreground="#172b4d")
-        estilo.map( "TNotebook.Tab", background=[("selected", "#9ca3af"), ("active", "#c4c8ce")], foreground=[("selected", "#172b4d")])
+        estilo.map("TNotebook.Tab", background=[("selected", "#9ca3af"), ("active", "#c4c8ce")], foreground=[("selected", "#172b4d")])
 
         # Estructura de la ventana principal
         encabezado = ttk.Frame(self.ventana, padding=(24, 20))
@@ -58,7 +63,7 @@ class SoftwareFJ:
 
         # Títulos y subtítulos fuera de las pestañas
         ttk.Label(encabezado, text="Software FJ", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(encabezado, text="Sofware para administracion servicios", style="Subtitle.TLabel").pack(anchor="w", pady=(3, 0))
+        ttk.Label(encabezado, text="Software para administración servicios", style="Subtitle.TLabel").pack(anchor="w", pady=(3, 0))
 
         # Crear las pestañas del software
         pestañas = ttk.Notebook(self.ventana)
@@ -75,27 +80,27 @@ class SoftwareFJ:
         for titulo, descripcion in secciones:
             pagina = ttk.Frame(pestañas, padding=16)
             pestañas.add(pagina, text=titulo)
+            
+            # <-- 3. Aquí se agregó la validación para llamar a la pestaña de Salas
             if titulo == "Clientes":
                 self._crear_pestana_clientes(pagina)
+            elif titulo == "Salas":
+                self._crear_pestana_salas(pagina)
             else:
-                ttk.Label(
-                    pagina, text=descripcion, style="Section.TLabel"
-                ).pack(anchor="w")
+                ttk.Label(pagina, text=descripcion, style="Section.TLabel").pack(anchor="w")
 
-    # Crear la pestaña de clientes con formulario y tabla
+    # =========================================================
+    # MÓDULO: CLIENTES
+    # =========================================================
     def _crear_pestana_clientes(self, pagina):
-
-        # Configuración de la cuadrícula para la pestaña de clientes
         pagina.columnconfigure(0, weight=1)
         pagina.columnconfigure(1, weight=3)
         pagina.rowconfigure(0, weight=1)
 
-        # Crear el formulario para registrar clientes
         formulario = ttk.LabelFrame(pagina, text="Registrar cliente", padding=16, labelanchor="n")
         formulario.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         formulario.columnconfigure(0, weight=1)
 
-        # Crear los campos del formulario para registrar clientes
         self.campos_cliente = {}
         campos = (
             ("NIT / C.C.", "nit"),
@@ -105,88 +110,190 @@ class SoftwareFJ:
             ("Dirección", "direccion"),
         )
         for fila, (etiqueta, clave) in enumerate(campos):
-            ttk.Label(formulario, text=etiqueta).grid(
-                row=fila * 2, column=0, sticky="w", pady=(8, 3)
-            )
+            ttk.Label(formulario, text=etiqueta).grid(row=fila * 2, column=0, sticky="w", pady=(8, 3))
             campo = ttk.Entry(formulario)
             campo.grid(row=fila * 2 + 1, column=0, sticky="ew")
             self.campos_cliente[clave] = campo
 
         ttk.Button(formulario, text="Guardar cliente", command=self.crear_cliente, style="Guardar.TButton").grid(row=len(campos) * 2, column=0, sticky="ew", pady=(18, 0))
 
-        # Crear la tabla para mostrar los clientes almacenados
         bloque_clientes = ttk.LabelFrame(pagina, text="Clientes almacenados", padding=12, labelanchor="n")
         bloque_clientes.grid(row=0, column=1, sticky="nsew")
         bloque_clientes.columnconfigure(0, weight=1)
         bloque_clientes.rowconfigure(0, weight=1)
 
-        # Crear la tabla de clientes con encabezados
         columnas = ("nit", "cliente", "celular", "correo", "direccion")
         self.tabla_clientes = ttk.Treeview(bloque_clientes, columns=columnas, show="headings")
-        encabezados = {
-            "nit": "NIT / C.C.",
-            "cliente": "Cliente",
-            "celular": "Celular",
-            "correo": "Correo",
-            "direccion": "Dirección",
-        }
-        anchos = {
-            "nit": 120,
-            "cliente": 180,
-            "celular": 120,
-            "correo": 200,
-            "direccion": 200,
-        }
+        encabezados = {"nit": "NIT / C.C.", "cliente": "Cliente", "celular": "Celular", "correo": "Correo", "direccion": "Dirección"}
+        anchos = {"nit": 120, "cliente": 180, "celular": 120, "correo": 200, "direccion": 200}
 
         for columna in columnas:
             self.tabla_clientes.heading(columna, text=encabezados[columna])
-            self.tabla_clientes.column(
-                columna, width=anchos[columna], minwidth=90, anchor="w"
-            )
-        # Crear la barra de desplazamiento vertical para la tabla de clientes
-        barra = ttk.Scrollbar(
-            bloque_clientes, orient="vertical", command=self.tabla_clientes.yview
-        )
+            self.tabla_clientes.column(columna, width=anchos[columna], minwidth=90, anchor="w")
+            
+        barra = ttk.Scrollbar(bloque_clientes, orient="vertical", command=self.tabla_clientes.yview)
         self.tabla_clientes.configure(yscrollcommand=barra.set)
         self.tabla_clientes.grid(row=0, column=0, sticky="nsew")
         barra.grid(row=0, column=1, sticky="ns")
         self._actualizar_tabla_clientes()
 
-    # Actualizar la tabla de clientes con los datos almacenados
     def _actualizar_tabla_clientes(self):
         for elemento in self.tabla_clientes.get_children():
             self.tabla_clientes.delete(elemento)
         for cliente in self.clientes:
             self.tabla_clientes.insert("", "end", values=tuple(cliente[campo] for campo in ("nit", "cliente", "celular", "correo", "direccion")))
 
-    # Crear un nuevo cliente y agregarlo a la lista de clientes
     def crear_cliente(self):
-        cliente = {
-            clave: campo.get().strip()
-            for clave, campo in self.campos_cliente.items()
-        }
+        cliente = {clave: campo.get().strip() for clave, campo in self.campos_cliente.items()}
 
-        # Mensaje de advertencia si los campos están incompletos
         if not all(cliente.values()):
             messagebox.showwarning("Datos incompletos", "Completa todos los campos para guardar el cliente.", parent=self.ventana)
             return
 
-        # Mensaje de advertencia si el NIT ya existe en la lista de clientes
         if any(registro["nit"] == cliente["nit"] for registro in self.clientes):
             messagebox.showwarning("Identificación duplicada", "Ya existe un cliente con ese NIT / C.C.", parent=self.ventana)
             return
 
-        # Agregar el nuevo cliente a la lista y actualizar la tabla
         self.clientes.append(cliente)
         self._actualizar_tabla_clientes()
         for campo in self.campos_cliente.values():
             campo.delete(0, tk.END)
-
-        # Mensaje de información indicando que el cliente se agregó correctamente
         messagebox.showinfo("Cliente guardado", "El cliente se agregó correctamente.", parent=self.ventana)
 
 
-    # Ejecutar la aplicación
+    # =========================================================
+    # <-- 4. AQUÍ EMPIEZA EL NUEVO MÓDULO: RESERVA DE SALAS -->
+    # =========================================================
+    def _crear_pestana_salas(self, pagina):
+        pagina.columnconfigure(0, weight=1)
+        pagina.columnconfigure(1, weight=3)
+        pagina.rowconfigure(0, weight=1)
+
+        formulario = ttk.LabelFrame(pagina, text="Registrar reserva de sala", padding=16, labelanchor="n")
+        formulario.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        formulario.columnconfigure(0, weight=1)
+
+        self.campos_sala = {}
+
+        ttk.Label(formulario, text="Tipo de reunión").grid(row=0, column=0, sticky="w", pady=(4, 2))
+        self.campos_sala['tipo'] = ttk.Combobox(formulario, values=["Con Cliente", "Con Empleado"], state="readonly")
+        self.campos_sala['tipo'].grid(row=1, column=0, sticky="ew")
+        self.campos_sala['tipo'].bind("<<ComboboxSelected>>", self._cargar_contactos) 
+
+        ttk.Label(formulario, text="Seleccionar Contacto").grid(row=2, column=0, sticky="w", pady=(8, 2))
+        self.campos_sala['contacto'] = ttk.Combobox(formulario, state="readonly")
+        self.campos_sala['contacto'].grid(row=3, column=0, sticky="ew")
+
+        ttk.Label(formulario, text="Sala").grid(row=4, column=0, sticky="w", pady=(8, 2))
+        self.campos_sala['sala'] = ttk.Combobox(formulario, values=[f"Sala {i}" for i in range(1, 13)], state="readonly")
+        self.campos_sala['sala'].grid(row=5, column=0, sticky="ew")
+
+        ttk.Label(formulario, text="Fecha (DD/MM/AAAA)").grid(row=6, column=0, sticky="w", pady=(8, 2))
+        self.campos_sala['fecha'] = ttk.Entry(formulario)
+        self.campos_sala['fecha'].grid(row=7, column=0, sticky="ew")
+
+        ttk.Label(formulario, text="Hora Inicio (HH:MM - Formato 24h)").grid(row=8, column=0, sticky="w", pady=(8, 2))
+        self.campos_sala['hora_inicio'] = ttk.Entry(formulario)
+        self.campos_sala['hora_inicio'].grid(row=9, column=0, sticky="ew")
+
+        ttk.Label(formulario, text="Hora Finalización (HH:MM - Formato 24h)").grid(row=10, column=0, sticky="w", pady=(8, 2))
+        self.campos_sala['hora_fin'] = ttk.Entry(formulario)
+        self.campos_sala['hora_fin'].grid(row=11, column=0, sticky="ew")
+
+        ttk.Button(formulario, text="Guardar reserva", command=self.guardar_reserva_sala, style="Guardar.TButton").grid(row=12, column=0, sticky="ew", pady=(18, 0))
+
+        bloque_salas = ttk.LabelFrame(pagina, text="Listado de reservas de salas", padding=12, labelanchor="n")
+        bloque_salas.grid(row=0, column=1, sticky="nsew")
+        bloque_salas.columnconfigure(0, weight=1)
+        bloque_salas.rowconfigure(0, weight=1)
+
+        columnas = ("codigo", "tipo", "contacto", "sala", "fecha", "inicio", "fin")
+        self.tabla_salas = ttk.Treeview(bloque_salas, columns=columnas, show="headings")
+        
+        encabezados = {"codigo": "Código", "tipo": "Tipo", "contacto": "Contacto", "sala": "Sala", "fecha": "Fecha", "inicio": "Hora Inicio", "fin": "Hora Fin"}
+        anchos = {"codigo": 100, "tipo": 100, "contacto": 150, "sala": 80, "fecha": 90, "inicio": 80, "fin": 80}
+
+        for col in columnas:
+            self.tabla_salas.heading(col, text=encabezados[col])
+            self.tabla_salas.column(col, width=anchos[col], anchor="center")
+
+        barra = ttk.Scrollbar(bloque_salas, orient="vertical", command=self.tabla_salas.yview)
+        self.tabla_salas.configure(yscrollcommand=barra.set)
+        self.tabla_salas.grid(row=0, column=0, sticky="nsew")
+        barra.grid(row=0, column=1, sticky="ns")
+        
+        self._actualizar_tabla_salas()
+
+    def _cargar_contactos(self, evento):
+        tipo = self.campos_sala['tipo'].get()
+        if tipo == "Con Cliente":
+            nombres = [cliente['cliente'] for cliente in self.clientes]
+            self.campos_sala['contacto'].config(values=nombres)
+        elif tipo == "Con Empleado":
+            self.campos_sala['contacto'].config(values=self.empleados)
+        self.campos_sala['contacto'].set('') 
+
+    def guardar_reserva_sala(self):
+        reserva = {clave: campo.get().strip() for clave, campo in self.campos_sala.items()}
+
+        if not all(reserva.values()):
+            messagebox.showwarning("Datos incompletos", "Completa todos los campos para reservar la sala.", parent=self.ventana)
+            return
+
+        try:
+            formato_hora = "%H:%M"
+            hora_inicio = datetime.strptime(reserva['hora_inicio'], formato_hora)
+            hora_fin = datetime.strptime(reserva['hora_fin'], formato_hora)
+            
+            hora_apertura = datetime.strptime("08:00", formato_hora)
+            hora_cierre = datetime.strptime("20:00", formato_hora)
+
+            if hora_inicio < hora_apertura or hora_fin > hora_cierre:
+                messagebox.showerror("Horario inválido", "Las salas solo operan entre las 08:00 y las 20:00.", parent=self.ventana)
+                return
+
+            if hora_inicio >= hora_fin:
+                messagebox.showerror("Error de tiempo", "La hora de finalización debe ser mayor a la hora de inicio.", parent=self.ventana)
+                return
+
+            diferencia_horas = (hora_fin - hora_inicio).total_seconds() / 3600
+            if diferencia_horas > 2:
+                messagebox.showerror("Límite excedido", "Las reuniones no pueden ser mayores a 2 horas.", parent=self.ventana)
+                return
+
+            for r_existente in self.reservas_salas:
+                if r_existente['sala'] == reserva['sala'] and r_existente['fecha'] == reserva['fecha']:
+                    h_inicio_exist = datetime.strptime(r_existente['hora_inicio'], formato_hora)
+                    h_fin_exist = datetime.strptime(r_existente['hora_fin'], formato_hora)
+                    
+                    if (hora_inicio < h_fin_exist) and (hora_fin > h_inicio_exist):
+                        messagebox.showerror("Sala Ocupada", "La sala seleccionada ya está reservada en ese horario.", parent=self.ventana)
+                        return
+
+        except ValueError:
+            messagebox.showerror("Formato inválido", "Usa el formato HH:MM (ej. 14:30) para las horas.", parent=self.ventana)
+            return
+
+        numero_reserva = len(self.reservas_salas) + 1
+        reserva['codigo'] = f"reserva-sala-{numero_reserva}"
+
+        self.reservas_salas.append(reserva)
+        self._actualizar_tabla_salas()
+        
+        for campo in self.campos_sala.values():
+            campo.set('') if isinstance(campo, ttk.Combobox) else campo.delete(0, tk.END)
+
+        messagebox.showinfo("Reserva Exitosa", f"Se guardó exitosamente con el código: {reserva['codigo']}", parent=self.ventana)
+
+    def _actualizar_tabla_salas(self):
+        for elemento in self.tabla_salas.get_children():
+            self.tabla_salas.delete(elemento)
+        for r in self.reservas_salas:
+            self.tabla_salas.insert("", "end", values=(r['codigo'], r['tipo'], r['contacto'], r['sala'], r['fecha'], r['hora_inicio'], r['hora_fin']))
+
+    # =========================================================
+    # EJECUCIÓN
+    # =========================================================
     def ejecutar(self):
         self.ventana.mainloop()
 
