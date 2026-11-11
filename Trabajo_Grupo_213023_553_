@@ -20,9 +20,9 @@ class SoftwareFJ:
         
         # --- DATOS BASE ---
         self.clientes = [
-            {"nit": "900123456-1", "cliente": "Comercializadora Andina", "celular": "3001234567", "correo": "contacto@andina.com", "direccion": "Calle 10 # 20-30"},
-            {"nit": "901234567-2", "cliente": "Soluciones del Valle", "celular": "3102345678", "correo": "info@solucionesvalle.com", "direccion": "Carrera 5 # 12-40"},
-            {"nit": "1023456789", "cliente": "Laura Martínez", "celular": "3203456789", "correo": "laura.martinez@example.com", "direccion": "Avenida 3 # 45-18"},
+            {"nit": "900123456-1", "cliente": "Comercializadora Andina", "celular": "3001234567", "correo": "contacto@andina.com", "dirección": "Calle 10 # 20-30"},
+            {"nit": "901234567-2", "cliente": "Soluciones del Valle", "celular": "3102345678", "correo": "info@solucionesvalle.com", "dirección": "Carrera 5 # 12-40"},
+            {"nit": "1023456789", "cliente": "Laura Martínez", "celular": "3203456789", "correo": "laura.martinez@example.com", "dirección": "Avenida 3 # 45-18"},
         ]
         
         # <-- 2. Nuevas variables agregadas para Salas
@@ -77,7 +77,7 @@ class SoftwareFJ:
         )
 
         # Crear cada pestaña y su contenido
-        for titulo, descripcion in secciones:
+        for titulo, descripción in secciones:
             pagina = ttk.Frame(pestañas, padding=16)
             pestañas.add(pagina, text=titulo)
             
@@ -87,7 +87,7 @@ class SoftwareFJ:
             elif titulo == "Salas":
                 self._crear_pestana_salas(pagina)
             else:
-                ttk.Label(pagina, text=descripcion, style="Section.TLabel").pack(anchor="w")
+                ttk.Label(pagina, text=descripción, style="Section.TLabel").pack(anchor="w")
 
     # =========================================================
     # MÓDULO: CLIENTES
@@ -107,7 +107,7 @@ class SoftwareFJ:
             ("Cliente", "cliente"),
             ("Celular", "celular"),
             ("Correo", "correo"),
-            ("Dirección", "direccion"),
+            ("Dirección", "dirección"),
         )
         for fila, (etiqueta, clave) in enumerate(campos):
             ttk.Label(formulario, text=etiqueta).grid(row=fila * 2, column=0, sticky="w", pady=(8, 3))
@@ -122,10 +122,10 @@ class SoftwareFJ:
         bloque_clientes.columnconfigure(0, weight=1)
         bloque_clientes.rowconfigure(0, weight=1)
 
-        columnas = ("nit", "cliente", "celular", "correo", "direccion")
+        columnas = ("nit", "cliente", "celular", "correo", "dirección")
         self.tabla_clientes = ttk.Treeview(bloque_clientes, columns=columnas, show="headings")
-        encabezados = {"nit": "NIT / C.C.", "cliente": "Cliente", "celular": "Celular", "correo": "Correo", "direccion": "Dirección"}
-        anchos = {"nit": 120, "cliente": 180, "celular": 120, "correo": 200, "direccion": 200}
+        encabezados = {"nit": "NIT / C.C.", "cliente": "Cliente", "celular": "Celular", "correo": "Correo", "dirección": "Dirección"}
+        anchos = {"nit": 120, "cliente": 180, "celular": 120, "correo": 200, "dirección": 200}
 
         for columna in columnas:
             self.tabla_clientes.heading(columna, text=encabezados[columna])
@@ -141,7 +141,7 @@ class SoftwareFJ:
         for elemento in self.tabla_clientes.get_children():
             self.tabla_clientes.delete(elemento)
         for cliente in self.clientes:
-            self.tabla_clientes.insert("", "end", values=tuple(cliente[campo] for campo in ("nit", "cliente", "celular", "correo", "direccion")))
+            self.tabla_clientes.insert("", "end", values=tuple(cliente[campo] for campo in ("nit", "cliente", "celular", "correo", "dirección")))
 
     def crear_cliente(self):
         cliente = {clave: campo.get().strip() for clave, campo in self.campos_cliente.items()}
