@@ -141,7 +141,7 @@ class SoftwareFJ:
         for elemento in self.tabla_clientes.get_children():
             self.tabla_clientes.delete(elemento)
         for cliente in self.clientes:
-            self.tabla_clientes.insert("", "end", values=tuple(cliente[campo] for campo in ("nit", "cliente", "celular", "correo", "dirección")))
+            self.tabla_clientes.insert("", "end", values=tuple(cliente[campo] for campo in ("nit", "cliente", "celular", "correo", "direccion")))
 
     def crear_cliente(self):
         cliente = {clave: campo.get().strip() for clave, campo in self.campos_cliente.items()}
