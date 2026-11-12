@@ -25,11 +25,16 @@ class SoftwareFJ:
             {"nit": "1023456789", "cliente": "Laura Martínez", "celular": "3203456789", "correo": "laura.martinez@example.com", "direccion": "Avenida 3 # 45-18"},
         ]
         
-        # Base de datos de empleados
         self.empleados = [
-            {"nombre": "Carlos Gómez", "especialidades": ["Asesoría técnica"]},
-            {"nombre": "Ana Silva", "especialidades": ["Asesoría de redes"]},
-            {"nombre": "Luis Fernández", "especialidades": ["Asesoría en seguridad"]},
+            {"nombre": "Carlos Gómez", "especialidades": ["Asesoría técnica", "Técnicas (Mtto Soft/Hard)"]},
+            {"nombre": "Ana Silva", "especialidades": ["Asesoría de redes", "Redes (Diseño/Impl/Monitoreo)"]},
+            {"nombre": "Luis Fernández", "especialidades": ["Asesoría en seguridad", "Seguridad"]},
+            {"nombre": "Mario Torres", "especialidades": ["Asesoría en seguridad", "Seguridad"]},
+            {"nombre": "Julia Castro", "especialidades": ["Asesoría en seguridad", "Seguridad"]},
+            {"nombre": "Andrés Felipe", "especialidades": ["Asesoría técnica", "Técnicas (Mtto Soft/Hard)"]},
+            {"nombre": "Carmen Ruiz", "especialidades": ["Asesoría técnica", "Técnicas (Mtto Soft/Hard)"]},
+            {"nombre": "David Vargas", "especialidades": ["Asesoría de redes", "Redes (Diseño/Impl/Monitoreo)"]},
+            {"nombre": "Sofía Mendoza", "especialidades": ["Asesoría de redes", "Redes (Diseño/Impl/Monitoreo)"]},
         ]
 
         # Base de datos de reservas de salas
@@ -38,6 +43,9 @@ class SoftwareFJ:
             {"codigo": "reserva-sala-2", "tipo": "Con Cliente", "participante": "Soluciones del Valle", "identificacion": "901234567-2", "sala": "Sala 2", "fecha": "14/11/2026", "hora_inicio": "10:00", "hora_fin": "11:00"},
             {"codigo": "reserva-sala-3", "tipo": "Con Cliente", "participante": "Laura Martínez", "identificacion": "1023456789", "sala": "Sala 3", "fecha": "15/11/2026", "hora_inicio": "11:00", "hora_fin": "12:00"},
         ]
+
+        # Base de datos de reservas de equipos
+        self.reservas_equipos = []
 
         # Base de datos de asesorías
         self.asesorias = []
@@ -59,7 +67,7 @@ class SoftwareFJ:
 
         estilo.configure("TFrame", background="#f3f4f6")
 
-        # Estilos para titulos y subtítulos fuera de las pestañas
+        # Estilos para títulos y subtítulos fuera de las pestañas
         estilo.configure("Title.TLabel", font=("Arial", 28, "bold"), background="#f3f4f6")
         estilo.configure("Subtitle.TLabel", font=("Arial", 12), background="#f3f4f6")
 
@@ -88,7 +96,12 @@ class SoftwareFJ:
         pestañas = ttk.Notebook(self.ventana)
         pestañas.pack(fill="both", expand=True, padx=24, pady=(0, 20))
 
-        secciones = (("Clientes", "Información de clientes"), ("Salas", "Información de salas"), ("Reserva de equipos", "Información de reservas de equipos"), ("Asesorías", "Información de asesorías"))
+        secciones = (
+            ("Clientes", "Información de clientes"), 
+            ("Salas", "Información de salas"), 
+            ("Reserva de equipos", "Información de reservas de equipos"), 
+            ("Asesorías", "Información de asesorías")
+        )
 
         # Crear cada pestaña y su contenido
         for titulo, descripcion in secciones:
@@ -100,12 +113,16 @@ class SoftwareFJ:
                 self._crear_pestana_clientes(pagina)
             elif titulo == "Salas":
                 self._crear_pestana_salas(pagina)
+            elif titulo == "Reserva de equipos":
+                self._crear_pestana_equipos(pagina)
             elif titulo == "Asesorías":
                 self._crear_pestana_asesorias(pagina)
             else:
                 ttk.Label(pagina, text=descripcion, style="Section.TLabel").pack(anchor="w")
 
+    # =========================================================
     # Módulo: CLIENTES
+    # =========================================================
     def _crear_pestana_clientes(self, pagina):
 
         # Configuración de la cuadrícula de la pestaña
@@ -119,7 +136,8 @@ class SoftwareFJ:
 
         # Campos del formulario de clientes
         self.campos_cliente = {}
-        campos = ( ("NIT / C.C.", "nit"), ("Cliente", "cliente"), ("Celular", "celular"), ("Correo", "correo"), ("Dirección", "direccion"))
+        campos = (("NIT / C.C.", "nit"), ("Cliente", "cliente"), ("Celular", "celular"), ("Correo", "correo"), ("Dirección", "direccion"))
+
         for fila, (etiqueta, clave) in enumerate(campos):
             ttk.Label(formulario, text=etiqueta).grid(row=fila * 2, column=0, sticky="w", pady=(8, 3))
             campo = ttk.Entry(formulario)
@@ -148,6 +166,7 @@ class SoftwareFJ:
         self.tabla_clientes.configure(yscrollcommand=barra.set)
         self.tabla_clientes.grid(row=0, column=0, sticky="nsew")
         barra.grid(row=0, column=1, sticky="ns")
+
         self._actualizar_tabla_clientes()
 
     # Actualizar la tabla de clientes con los datos almacenados
@@ -155,9 +174,9 @@ class SoftwareFJ:
         for elemento in self.tabla_clientes.get_children():
             self.tabla_clientes.delete(elemento)
         for cliente in self.clientes:
-            self.tabla_clientes.insert("", "end", values=tuple(cliente[campo] for campo in ("nit", "cliente", "celular", "correo", "direccion")))
+            self.tabla_clientes.insert("", "end", values=tuple(cliente.values()))
 
-    # Función para crear un nuevo cliente y agregarlo a la lista de clientes
+    # Crear un nuevo cliente a partir de los datos ingresados en el formulario
     def crear_cliente(self):
         cliente = {clave: campo.get().strip() for clave, campo in self.campos_cliente.items()}
 
@@ -171,12 +190,15 @@ class SoftwareFJ:
 
         self.clientes.append(cliente)
         self._actualizar_tabla_clientes()
+
         for campo in self.campos_cliente.values():
             campo.delete(0, tk.END)
-        messagebox.showinfo("Cliente guardado", "El cliente se agregó correctamente.", parent=self.ventana)
 
+        messagebox.showinfo("Cliente guardado", f"Cliente {cliente['cliente']} registrado correctamente.", parent=self.ventana)
 
-    # Módulo: RESERVA DE SALAS
+    # =========================================================
+    # Módulo: SALAS
+    # =========================================================
     def _crear_pestana_salas(self, pagina):
         pagina.columnconfigure(0, weight=1)
         pagina.columnconfigure(1, weight=3)
@@ -239,59 +261,55 @@ class SoftwareFJ:
         bloque_salas.columnconfigure(0, weight=1)
         bloque_salas.rowconfigure(0, weight=1)
 
-        columnas = ("codigo", "tipo", "participante", "identificacion", "sala", "fecha", "inicio", "fin")
+        # Tabla de reservas de salas
+        columnas = ("codigo", "tipo", "participante", "identificacion", "sala", "fecha", "hora_inicio", "hora_fin")
         self.tabla_salas = ttk.Treeview(bloque_salas, columns=columnas, show="headings")
-        
-        encabezados = {"codigo": "Código", "tipo": "Tipo", "participante": "Cliente / empleado", "identificacion": "Identificación", "sala": "Sala", "fecha": "Fecha", "inicio": "Hora Inicio", "fin": "Hora Fin"}
-        anchos = {"codigo": 100, "tipo": 100, "participante": 150, "identificacion": 120, "sala": 80, "fecha": 90, "inicio": 80, "fin": 80}
+        encabezados = {"codigo": "Código", "tipo": "Tipo de reunión", "participante": "Participante", "identificacion": "Identificación", "sala": "Sala", "fecha": "Fecha", "hora_inicio": "Hora inicio", "hora_fin": "Hora fin"}
+        anchos = {"codigo": 120, "tipo": 120, "participante": 180, "identificacion": 120, "sala": 70, "fecha": 90, "hora_inicio": 80, "hora_fin": 80}
 
-        for col in columnas:
-            self.tabla_salas.heading(col, text=encabezados[col])
-            self.tabla_salas.column(col, width=anchos[col], anchor="center")
+        for columna in columnas:
+            self.tabla_salas.heading(columna, text=encabezados[columna])
+            self.tabla_salas.column(columna, width=anchos[columna], minwidth=80, anchor="w")
 
         barra = ttk.Scrollbar(bloque_salas, orient="vertical", command=self.tabla_salas.yview)
         self.tabla_salas.configure(yscrollcommand=barra.set)
         self.tabla_salas.grid(row=0, column=0, sticky="nsew")
         barra.grid(row=0, column=1, sticky="ns")
-        
+
         self._actualizar_tabla_salas()
 
-    # Actualizar el selector de participantes según el tipo de reunión seleccionado
+    # Actualizar los campos del formulario según el tipo de participante seleccionado
     def _actualizar_selector_participante(self, evento=None):
         tipo = self.campos_sala['tipo'].get()
-        selector = self.campos_sala['participante']
-        selector.set('')
-        self.campos_sala['identificacion_empleado'].delete(0, tk.END)
-        self.etiqueta_identificacion_empleado.grid_remove()
-        self.campos_sala['identificacion_empleado'].grid_remove()
 
-        # Si el tipo es "Con Cliente", mostrar el selector de clientes
         if tipo == "Con Cliente":
-            nombres = [cliente['cliente'] for cliente in self.clientes]
             self.etiqueta_participante_sala.config(text="Seleccionar cliente")
-            selector.config(values=nombres)
             self.etiqueta_participante_sala.grid()
-            selector.grid()
-        # Si el tipo es "Con Empleado", mostrar el selector de empleados y el campo de identificación
+            self.campos_sala['participante'].config(values=[cliente['cliente'] for cliente in self.clientes])
+            self.campos_sala['participante'].grid()
+            self.campos_sala['participante'].set('')
+            self.etiqueta_identificacion_empleado.grid_remove()
+            self.campos_sala['identificacion_empleado'].grid_remove()
         elif tipo == "Con Empleado":
             self.etiqueta_participante_sala.config(text="Seleccionar empleado")
-            selector.config(values=[empleado["nombre"] for empleado in self.empleados])
             self.etiqueta_participante_sala.grid()
-            selector.grid()
+            self.campos_sala['participante'].config(values=[empleado["nombre"] for empleado in self.empleados])
+            self.campos_sala['participante'].grid()
+            self.campos_sala['participante'].set('')
             self.etiqueta_identificacion_empleado.grid()
             self.campos_sala['identificacion_empleado'].grid()
-        # Si no se selecciona un tipo válido, ocultar ambos selectores        
         else:
-            selector.config(values=[])
             self.etiqueta_participante_sala.grid_remove()
-            selector.grid_remove()
+            self.campos_sala['participante'].grid_remove()
+            self.etiqueta_identificacion_empleado.grid_remove()
+            self.campos_sala['identificacion_empleado'].grid_remove()
 
-    # Función para obtener el intervalo de reserva ingresado por el usuario
-    def _obtener_intervalo_reserva(self):
+    # Validar y convertir los textos de fecha y horas a objetos datetime
+    def _obtener_intervalo_reserva(self, fecha_texto, hora_inicio_texto, hora_fin_texto):
         try:
-            fecha = datetime.strptime(self.campos_sala['fecha'].get().strip(), "%d/%m/%Y").date()
-            hora_inicio = datetime.strptime(self.campos_sala['hora_inicio'].get().strip(), "%H:%M")
-            hora_fin = datetime.strptime(self.campos_sala['hora_fin'].get().strip(), "%H:%M")
+            fecha = datetime.strptime(fecha_texto, "%d/%m/%Y").date()
+            hora_inicio = datetime.strptime(hora_inicio_texto, "%H:%M")
+            hora_fin = datetime.strptime(hora_fin_texto, "%H:%M")
         except ValueError:
             return None
 
@@ -300,83 +318,85 @@ class SoftwareFJ:
 
         return fecha, hora_inicio, hora_fin
 
-    # Función para verificar si una sala está ocupada en un intervalo de tiempo específico
+    # Verificar si una sala específica ya está reservada en un intervalo de tiempo dado
     def _sala_ocupada(self, sala, fecha, hora_inicio, hora_fin):
         for reserva in self.reservas_salas:
-            if reserva['sala'] != sala:
+            if reserva.get("sala") != sala:
                 continue
-            fecha_existente = datetime.strptime(reserva['fecha'], "%d/%m/%Y").date()
-            if fecha_existente != fecha:
+            if reserva.get("fecha") != fecha.strftime("%d/%m/%Y"):
                 continue
 
-            inicio_existente = datetime.strptime(reserva['hora_inicio'], "%H:%M")
-            fin_existente = datetime.strptime(reserva['hora_fin'], "%H:%M")
-            if hora_inicio < fin_existente and hora_fin > inicio_existente:
+            inicio_existente = datetime.strptime(reserva.get("hora_inicio"), "%H:%M")
+            fin_existente = datetime.strptime(reserva.get("hora_fin"), "%H:%M")
+
+            if (hora_inicio < fin_existente) and (hora_fin > inicio_existente):
                 return True
         return False
 
-    # Función para actualizar la lista de salas disponibles según el intervalo de reserva ingresado
+    # Actualizar la lista de salas disponibles según la fecha y el horario ingresados
     def _actualizar_salas_disponibles(self, evento=None):
-        intervalo = self._obtener_intervalo_reserva()
-        todas_las_salas = [f"Sala {i}" for i in range(1, 13)]
-        sala_seleccionada = self.campos_sala['sala'].get()
-
-        if intervalo is None:
-            self.campos_sala['sala'].config(values=todas_las_salas)
-            return
-
-        fecha, hora_inicio, hora_fin = intervalo
-        if sala_seleccionada and self._sala_ocupada(sala_seleccionada, fecha, hora_inicio, hora_fin):
-            messagebox.showwarning(
-                "Sala reservada",
-                "La sala ya está reservada en ese horario.",
-                parent=self.ventana
-            )
-            self.campos_sala['sala'].set('')
-
-        salas_disponibles = [
-            sala for sala in todas_las_salas
-            if not self._sala_ocupada(sala, fecha, hora_inicio, hora_fin)
-        ]
-        self.campos_sala['sala'].config(values=salas_disponibles)
-
-    # Función para validar si la sala seleccionada está ocupada en el intervalo de reserva ingresado
-    def _validar_sala_seleccionada(self, evento=None):
-        intervalo = self._obtener_intervalo_reserva()
-        sala = self.campos_sala['sala'].get()
-        if intervalo is None or not sala:
-            return
-
-        fecha, hora_inicio, hora_fin = intervalo
-        if self._sala_ocupada(sala, fecha, hora_inicio, hora_fin):
-            messagebox.showwarning(
-                "Sala reservada",
-                "La sala ya está reservada en ese horario.",
-                parent=self.ventana
-            )
-            self.campos_sala['sala'].set('')
-            self._actualizar_salas_disponibles()
-
-    # Función para guardar la reserva de sala después de validar los datos ingresados
-    def guardar_reserva_sala(self):
-        tipo = self.campos_sala['tipo'].get().strip()
-        participante = self.campos_sala['participante'].get().strip()
-        sala = self.campos_sala['sala'].get().strip()
         fecha_texto = self.campos_sala['fecha'].get().strip()
         hora_inicio_texto = self.campos_sala['hora_inicio'].get().strip()
         hora_fin_texto = self.campos_sala['hora_fin'].get().strip()
-        identificacion_empleado = self.campos_sala['identificacion_empleado'].get().strip()
 
-        if not all((tipo, participante, sala, fecha_texto, hora_inicio_texto, hora_fin_texto)):
-            messagebox.showwarning("Datos incompletos", "Completa todos los campos para reservar la sala.", parent=self.ventana)
+        intervalo = self._obtener_intervalo_reserva(fecha_texto, hora_inicio_texto, hora_fin_texto)
+        if intervalo is None:
+            self.campos_sala['sala'].config(values=[f"Sala {i}" for i in range(1, 13)])
             return
 
-        if tipo not in ("Con Cliente", "Con Empleado"):
-            messagebox.showwarning("Tipo inválido", "Selecciona un tipo de reunión válido.", parent=self.ventana)
+        fecha, hora_inicio, hora_fin = intervalo
+        salas_disponibles = [
+            f"Sala {i}"
+            for i in range(1, 13)
+            if not self._sala_ocupada(f"Sala {i}", fecha, hora_inicio, hora_fin)
+        ]
+
+        self.campos_sala['sala'].config(values=salas_disponibles)
+        sala_actual = self.campos_sala['sala'].get()
+        if sala_actual and sala_actual not in salas_disponibles:
+            self.campos_sala['sala'].set('')
+
+    # Validar si la sala seleccionada está disponible en el horario actual ingresado
+    def _validar_sala_seleccionada(self, evento=None):
+        sala_seleccionada = self.campos_sala['sala'].get().strip()
+        fecha_texto = self.campos_sala['fecha'].get().strip()
+        hora_inicio_texto = self.campos_sala['hora_inicio'].get().strip()
+        hora_fin_texto = self.campos_sala['hora_fin'].get().strip()
+
+        intervalo = self._obtener_intervalo_reserva(fecha_texto, hora_inicio_texto, hora_fin_texto)
+        if intervalo is None:
+            return
+
+        fecha, hora_inicio, hora_fin = intervalo
+        if self._sala_ocupada(sala_seleccionada, fecha, hora_inicio, hora_fin):
+            messagebox.showwarning("Sala ocupada", f"La {sala_seleccionada} ya está reservada en ese horario.", parent=self.ventana)
+            self.campos_sala['sala'].set('')
+
+    # Guardar una nueva reserva de sala a partir de los datos ingresados en el formulario
+    def guardar_reserva_sala(self):
+        tipo = self.campos_sala['tipo'].get().strip()
+        participante = self.campos_sala['participante'].get().strip()
+        identificacion_empleado = self.campos_sala['identificacion_empleado'].get().strip()
+        fecha_texto = self.campos_sala['fecha'].get().strip()
+        hora_inicio_texto = self.campos_sala['hora_inicio'].get().strip()
+        hora_fin_texto = self.campos_sala['hora_fin'].get().strip()
+        sala = self.campos_sala['sala'].get().strip()
+
+        # Validar campos vacíos según el tipo de participante
+        if not tipo:
+            messagebox.showwarning("Datos incompletos", "Selecciona el tipo de participante.", parent=self.ventana)
+            return
+
+        if not participante:
+            messagebox.showwarning("Datos incompletos", "Selecciona el participante de la reunión.", parent=self.ventana)
             return
 
         if tipo == "Con Empleado" and not identificacion_empleado:
             messagebox.showwarning("Datos incompletos", "Ingresa la identificación del empleado.", parent=self.ventana)
+            return
+
+        if not fecha_texto or not hora_inicio_texto or not hora_fin_texto or not sala:
+            messagebox.showwarning("Datos incompletos", "Completa la fecha, el horario y la sala para guardar la reserva.", parent=self.ventana)
             return
 
         try:
@@ -436,7 +456,16 @@ class SoftwareFJ:
             codigo = f"reserva-sala-{numero_reserva}"
 
         # Crear un diccionario con los datos de la reserva y agregarlo a la lista de reservas
-        reserva = {"codigo": codigo, "tipo": tipo, "participante": participante, "identificacion": identificacion, "sala": sala, "fecha": fecha.strftime("%d/%m/%Y"), "hora_inicio": hora_inicio_texto, "hora_fin": hora_fin_texto}
+        reserva = {
+            "codigo": codigo, 
+            "tipo": tipo, 
+            "participante": participante, 
+            "identificacion": identificacion, 
+            "sala": sala, 
+            "fecha": fecha.strftime("%d/%m/%Y"), 
+            "hora_inicio": hora_inicio_texto, 
+            "hora_fin": hora_fin_texto
+        }
 
         self.reservas_salas.append(reserva)
         self._actualizar_tabla_salas()
@@ -459,7 +488,122 @@ class SoftwareFJ:
         for r in self.reservas_salas:
             self.tabla_salas.insert("", "end", values=(r['codigo'], r['tipo'], r['participante'], r['identificacion'], r['sala'], r['fecha'], r['hora_inicio'], r['hora_fin']))
 
+    # =========================================================
+    # Módulo: RESERVA DE EQUIPOS
+    # =========================================================
+    def _crear_pestana_equipos(self, pagina):
+        pagina.columnconfigure(0, weight=1)
+        pagina.columnconfigure(1, weight=3)
+        pagina.rowconfigure(0, weight=1)
+
+        formulario = ttk.LabelFrame(pagina, text="Asignar equipos a sala", padding=16, labelanchor="n")
+        formulario.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
+        formulario.columnconfigure(0, weight=1)
+
+        self.campos_equipo = {}
+        
+        # Selección de código de sala reservada
+        ttk.Label(formulario, text="Código Reserva Sala").grid(row=0, column=0, sticky="w", pady=(4, 2))
+        self.campos_equipo['cod_sala'] = ttk.Combobox(formulario, state="readonly")
+        self.campos_equipo['cod_sala'].grid(row=1, column=0, sticky="ew")
+        self.campos_equipo['cod_sala'].config(
+            values=[r['codigo'] for r in self.reservas_salas],
+            postcommand=lambda: self.campos_equipo['cod_sala'].config(values=[r['codigo'] for r in self.reservas_salas])
+        )
+
+        # Selección de equipos o combinaciones
+        ttk.Label(formulario, text="Equipos a Reservar").grid(row=2, column=0, sticky="w", pady=(8, 2))
+        combinaciones = ["TV", "Video Beam", "Tablero", "TV y Tablero", "Video Beam y Tablero"]
+        self.campos_equipo['equipos'] = ttk.Combobox(formulario, values=combinaciones, state="readonly")
+        self.campos_equipo['equipos'].grid(row=3, column=0, sticky="ew")
+
+        ttk.Button(formulario, text="Guardar equipos", command=self.guardar_reserva_equipo, style="Guardar.TButton").grid(row=4, column=0, sticky="ew", pady=(18, 0))
+
+        # Bloque de inventario reservado
+        bloque_equipos = ttk.LabelFrame(pagina, text="Inventario Reservado", padding=12, labelanchor="n")
+        bloque_equipos.grid(row=0, column=1, sticky="nsew")
+        bloque_equipos.columnconfigure(0, weight=1)
+        bloque_equipos.rowconfigure(0, weight=1)
+
+        self.tabla_equipos = ttk.Treeview(bloque_equipos, columns=("codigo_sala", "elemento"), show="headings")
+        self.tabla_equipos.heading("codigo_sala", text="Código Reserva Sala")
+        self.tabla_equipos.heading("elemento", text="Elemento Reservado")
+        self.tabla_equipos.column("codigo_sala", width=200, anchor="center")
+        self.tabla_equipos.column("elemento", width=200, anchor="center")
+
+        barra = ttk.Scrollbar(bloque_equipos, orient="vertical", command=self.tabla_equipos.yview)
+        self.tabla_equipos.configure(yscrollcommand=barra.set)
+        self.tabla_equipos.grid(row=0, column=0, sticky="nsew")
+        barra.grid(row=0, column=1, sticky="ns")
+        self._actualizar_tabla_equipos()
+
+    # Guardar la asignación de equipos a una sala reservada
+    def guardar_reserva_equipo(self):
+        cod_sala = self.campos_equipo['cod_sala'].get().strip()
+        combinacion = self.campos_equipo['equipos'].get().strip()
+
+        if not cod_sala or not combinacion:
+            messagebox.showwarning("Datos incompletos", "Selecciona sala y equipo.", parent=self.ventana)
+            return
+
+        eq_solicitados = []
+        if combinacion == "TV":
+            eq_solicitados = ["TV"]
+        elif combinacion == "Video Beam":
+            eq_solicitados = ["Video Beam"]
+        elif combinacion == "Tablero":
+            eq_solicitados = ["Tablero"]
+        elif combinacion == "TV y Tablero":
+            eq_solicitados = ["TV", "Tablero"]
+        elif combinacion == "Video Beam y Tablero":
+            eq_solicitados = ["Video Beam", "Tablero"]
+
+        sala_ref = next((r for r in self.reservas_salas if r['codigo'] == cod_sala), None)
+        if not sala_ref:
+            messagebox.showerror("Error", "La sala seleccionada no existe.", parent=self.ventana)
+            return
+
+        try:
+            f_req = sala_ref['fecha']
+            h_ini_req = datetime.strptime(sala_ref['hora_inicio'], "%H:%M")
+            h_fin_req = datetime.strptime(sala_ref['hora_fin'], "%H:%M")
+        except ValueError:
+            messagebox.showerror("Error", "Formato de hora incorrecto en la reserva de sala.", parent=self.ventana)
+            return
+
+        # Validar stock máximo de 12 unidades por equipo en horarios superpuestos
+        for eq in eq_solicitados:
+            ocupados = 0
+            for r_eq in self.reservas_equipos:
+                if r_eq['elemento'] == eq:
+                    sala_pres = next((r for r in self.reservas_salas if r['codigo'] == r_eq['codigo_sala']), None)
+                    if sala_pres and sala_pres['fecha'] == f_req:
+                        he_ini = datetime.strptime(sala_pres['hora_inicio'], "%H:%M")
+                        he_fin = datetime.strptime(sala_pres['hora_fin'], "%H:%M")
+                        if (h_ini_req < he_fin) and (h_fin_req > he_ini):
+                            ocupados += 1
+            if ocupados >= 12:
+                messagebox.showerror("Sin stock", f"No hay '{eq}' disponibles (Límite 12 superado).", parent=self.ventana)
+                return
+
+        for eq in eq_solicitados:
+            self.reservas_equipos.append({"codigo_sala": cod_sala, "elemento": eq})
+
+        self._actualizar_tabla_equipos()
+        self.campos_equipo['cod_sala'].set('')
+        self.campos_equipo['equipos'].set('')
+        messagebox.showinfo("Éxito", f"Equipos asignados a {cod_sala}.", parent=self.ventana)
+
+    # Actualizar la tabla de inventario reservado
+    def _actualizar_tabla_equipos(self):
+        for el in self.tabla_equipos.get_children():
+            self.tabla_equipos.delete(el)
+        for r in self.reservas_equipos:
+            self.tabla_equipos.insert("", "end", values=(r['codigo_sala'], r['elemento']))
+
+    # =========================================================
     # Módulo: ASESORÍAS
+    # =========================================================
     def _crear_pestana_asesorias(self, pagina):
         pagina.columnconfigure(0, weight=1)
         pagina.columnconfigure(1, weight=3)
@@ -520,13 +664,13 @@ class SoftwareFJ:
         # Tabla de asesorías
         columnas = ("codigo", "tipo", "empleado", "lugar", "reserva", "fecha", "hora")
         self.tabla_asesorias = ttk.Treeview(bloque_asesorias, columns=columnas, show="headings")
-        encabezados = {"codigo": "Código", "tipo": "Tipo de asesoría", "empleado": "Empleado", "lugar": "Lugar", "reserva": "Reserva de sala", "fecha": "Fecha", "hora": "Hora de inicio"} 
-        anchos = {"codigo": 110, "tipo": 170, "empleado": 150, "lugar": 190, "reserva": 130, "fecha": 100, "hora": 100}
+        encabezados = {"codigo": "Código", "tipo": "Tipo de asesoría", "empleado": "Empleado encargado", "lugar": "Lugar", "reserva": "Código reserva sala", "fecha": "Fecha", "hora": "Hora"}
+        anchos = {"codigo": 110, "tipo": 160, "empleado": 160, "lugar": 170, "reserva": 140, "fecha": 90, "hora": 80}
+
         for columna in columnas:
             self.tabla_asesorias.heading(columna, text=encabezados[columna])
-            self.tabla_asesorias.column(columna, width=anchos[columna], anchor="center")
+            self.tabla_asesorias.column(columna, width=anchos[columna], minwidth=80, anchor="w")
 
-        # Barra de desplazamiento para la tabla de asesorías
         barra = ttk.Scrollbar(bloque_asesorias, orient="vertical", command=self.tabla_asesorias.yview)
         self.tabla_asesorias.configure(yscrollcommand=barra.set)
         self.tabla_asesorias.grid(row=0, column=0, sticky="nsew")
@@ -534,17 +678,16 @@ class SoftwareFJ:
 
         self._actualizar_tabla_asesorias()
 
-    # Función para actualizar la lista de empleados disponibles según el tipo de asesoría seleccionado
+    # Actualizar la lista de empleados disponibles según el tipo de asesoría seleccionado
     def _actualizar_empleados_asesoria(self, evento=None):
         tipo = self.campos_asesoria['tipo'].get()
-        empleados_disponibles = [empleado['nombre']
-            for empleado in self.empleados
-            if tipo in empleado['especialidades']
+        empleados_disponibles = [
+            empleado['nombre'] for empleado in self.empleados if tipo in empleado['especialidades']
         ]
         self.campos_asesoria['empleado'].config(values=empleados_disponibles)
         self.campos_asesoria['empleado'].set('')
 
-    # Función para actualizar los campos de fecha y hora según el lugar seleccionado para la asesoría
+    # Actualizar la interfaz del módulo de asesorías según el lugar seleccionado
     def _actualizar_lugar_asesoria(self, evento=None):
         self._limpiar_reserva_asesoria()
         lugar = self.campos_asesoria['lugar'].get()
@@ -562,19 +705,16 @@ class SoftwareFJ:
             self.campos_asesoria['fecha'].config(state="normal")
             self.campos_asesoria['hora_inicio'].config(state="normal")
 
-    # Función para limpiar los campos de reserva de sala en el módulo de asesorías
+    # Limpiar los campos y variables relacionados con la reserva de sala en el módulo de asesorías
     def _limpiar_reserva_asesoria(self):
         self.codigo_reserva_sala_asesoria = ""
         self.fecha_reserva_sala_asesoria = ""
         self.hora_inicio_reserva_sala_asesoria = ""
         self.etiqueta_reserva_asesoria.config(text="Sin reserva de sala seleccionada")
+        self._establecer_campo_asesoria(self.campos_asesoria['fecha'], "")
+        self._establecer_campo_asesoria(self.campos_asesoria['hora_inicio'], "")
 
-        for clave in ("fecha", "hora_inicio"):
-            campo = self.campos_asesoria[clave]
-            campo.config(state="normal")
-            campo.delete(0, tk.END)
-
-    # Función para mostrar la ventana de selección de reservas de salas disponibles para asesorías
+    # Mostrar la ventana con las reservas de salas disponibles para asociar a una asesoría
     def _mostrar_reservas_salas_asesoria(self):
         if not self.reservas_salas:
             messagebox.showwarning("Sin reservas de sala", "No hay reservas de sala disponibles para seleccionar.", parent=self.ventana)
@@ -627,29 +767,27 @@ class SoftwareFJ:
 
         ventana_reservas.grab_set()
 
-    # Guardar la reserva seleccionada y completar automáticamente fecha y hora de la asesoría.
-    def _seleccionar_reserva_sala_asesoria(self, reserva, ventana_reservas):
+    # Asignar los datos de la reserva de sala seleccionada a los campos de la asesoría
+    def _seleccionar_reserva_sala_asesoria(self, reserva, ventana_modal):
         self.codigo_reserva_sala_asesoria = reserva.get("codigo", "")
         self.fecha_reserva_sala_asesoria = reserva.get("fecha", "")
         self.hora_inicio_reserva_sala_asesoria = reserva.get("hora_inicio", "")
 
-        self._establecer_campo_asesoria("fecha", self.fecha_reserva_sala_asesoria, solo_lectura=True)
-        self._establecer_campo_asesoria("hora_inicio", self.hora_inicio_reserva_sala_asesoria, solo_lectura=True)
-        self.etiqueta_reserva_asesoria.config(
-            text=f"Reserva seleccionada: {self.codigo_reserva_sala_asesoria}"
-        )
-        ventana_reservas.destroy()
+        self.etiqueta_reserva_asesoria.config(text=f"Reserva seleccionada: {self.codigo_reserva_sala_asesoria}")
+        self._establecer_campo_asesoria(self.campos_asesoria['fecha'], self.fecha_reserva_sala_asesoria)
+        self._establecer_campo_asesoria(self.campos_asesoria['hora_inicio'], self.hora_inicio_reserva_sala_asesoria)
 
-    # Asignar un valor a un campo del formulario y, si corresponde, dejarlo de solo lectura.
-    def _establecer_campo_asesoria(self, clave, valor, solo_lectura=False):
-        campo = self.campos_asesoria[clave]
+        ventana_modal.destroy()
+
+    # Establecer el valor de un campo de texto que puede estar en modo de solo lectura
+    def _establecer_campo_asesoria(self, campo, valor):
+        estado_original = campo.cget("state")
         campo.config(state="normal")
         campo.delete(0, tk.END)
         campo.insert(0, valor)
-        if solo_lectura:
-            campo.config(state="readonly")
+        campo.config(state=estado_original)
 
-    # Validar y guardar la asesoría en la lista, asociándola con una reserva de sala si aplica.
+    # Guardar una nueva asesoría a partir de los datos ingresados en el formulario
     def guardar_asesoria(self):
         tipo = self.campos_asesoria['tipo'].get().strip()
         empleado = self.campos_asesoria['empleado'].get().strip()
@@ -746,7 +884,7 @@ class SoftwareFJ:
             parent=self.ventana
         )
 
-    # Refrescar la tabla para mostrar las asesorías almacenadas.
+    # Actualizar la tabla de asesorías con los datos almacenados
     def _actualizar_tabla_asesorias(self):
         for elemento in self.tabla_asesorias.get_children():
             self.tabla_asesorias.delete(elemento)
