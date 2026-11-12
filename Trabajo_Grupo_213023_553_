@@ -1,9 +1,9 @@
 # Materia: Programación
 # Grupo: 213023_553
-# Nombre de los estudiante: 
+# Nombre de los estudiantes:
 #   Julio Cesar Ruiz Herrera 
 #   Daniel Augusto Zabala Cubides
-# Código Fuente: autoría propia
+# Código fuente: autoría propia
 
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -197,7 +197,7 @@ class SoftwareFJ:
         messagebox.showinfo("Cliente guardado", f"Cliente {cliente['cliente']} registrado correctamente.", parent=self.ventana)
 
     # =========================================================
-    # Módulo: SALAS
+    # Módulo: RESERVA DE SALAS
     # =========================================================
     def _crear_pestana_salas(self, pagina):
         pagina.columnconfigure(0, weight=1)
@@ -413,7 +413,7 @@ class SoftwareFJ:
             )
             return
 
-        # Validar que la hora de inicio y fin estén dentro del horario permitido (de 8am a 8pm)
+        # Validar que la hora de inicio y fin estén dentro del horario permitido (de 08:00 a 20:00)
         if hora_inicio < hora_apertura or hora_fin > hora_cierre:
             messagebox.showerror("Horario inválido", "Las salas solo operan entre las 08:00 y las 20:00.", parent=self.ventana)
             return
@@ -903,7 +903,7 @@ class SoftwareFJ:
                 )
             )
 
-    # Iniciar el ciclo principal de eventos de Tkinter.
+    # Iniciar el ciclo principal de eventos de Tkinter
     def ejecutar(self):
         self.ventana.mainloop()
 
