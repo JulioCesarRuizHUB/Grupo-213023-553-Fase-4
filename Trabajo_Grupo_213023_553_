@@ -7,14 +7,336 @@
 
 import tkinter as tk
 from tkinter import messagebox, ttk
-from datetime import datetime 
+from datetime import datetime
+from abc import ABC, abstractmethod
+from decimal import Decimal, InvalidOperation
+import logging
+import os
+import re
+
+
+class ErrorSoftwareFJ(Exception):
+    """Error base controlado del sistema."""
+
+
+class ErrorValidacion(ErrorSoftwareFJ):
+    pass
+
+
+class ErrorOperacion(ErrorSoftwareFJ):
+    pass
+
+
+class ErrorReserva(ErrorOperacion):
+    pass
+
+
+IMPUESTO_ASESORIA = Decimal("0")
+DESCUENTO_ASESORIA = Decimal("10")
+DURACION_ASESORIA = Decimal("1")
+
+
+def _a_decimal(valor, campo):
+    """Convierte a Decimal y rechaza valores inválidos o no finitos."""
+    try:
+        resultado = Decimal(str(valor))
+    except (InvalidOperation, TypeError, ValueError) as error:
+        raise ErrorValidacion(f"{campo} debe ser un valor numérico válido.") from error
+    if not resultado.is_finite():
+        raise ErrorValidacion(f"{campo} debe ser un valor numérico finito.")
+    return resultado
+
+
+class Entidad(ABC):
+    def __init__(self, codigo):
+        codigo = str(codigo).strip()
+        if not codigo:
+            raise ErrorValidacion("El código de la entidad es obligatorio.")
+        self._codigo = codigo
+
+    @property
+    def codigo(self):
+        return self._codigo
+
+    @abstractmethod
+    def describir(self):
+        pass
+
+
+class Cliente(Entidad):
+    def __init__(self, identificacion, nombre, celular, correo, direccion):
+        """Valida y encapsula los datos personales del cliente."""
+        super().__init__(identificacion)
+        campos = (nombre, celular, correo, direccion)
+        if not all(str(campo).strip() for campo in campos):
+            raise ErrorValidacion("Todos los datos personales del cliente son obligatorios.")
+        if not re.fullmatch(r"[0-9]{5,15}(?:-[0-9]{1,2})?", str(identificacion).strip()):
+            raise ErrorValidacion("La identificación debe tener entre 5 y 15 dígitos y un guion opcional.")
+        if not re.fullmatch(r"[0-9]{7,15}", str(celular).strip()):
+            raise ErrorValidacion("El celular debe contener entre 7 y 15 dígitos.")
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", str(correo).strip()):
+            raise ErrorValidacion("El correo electrónico no tiene un formato válido.")
+        self.__nombre = str(nombre).strip()
+        self.__celular = str(celular).strip()
+        self.__correo = str(correo).strip()
+        self.__direccion = str(direccion).strip()
+
+    @property
+    def identificacion(self):
+        return self.codigo
+
+    @property
+    def nombre(self):
+        return self.__nombre
+
+    @property
+    def celular(self):
+        return self.__celular
+
+    @property
+    def correo(self):
+        return self.__correo
+
+    @property
+    def direccion(self):
+        return self.__direccion
+
+    def describir(self):
+        return f"Cliente {self.nombre} ({self.identificacion})"
+
+
+class Servicio(Entidad, ABC):
+    def __init__(self, codigo, nombre, tarifa_hora):
+        super().__init__(codigo)
+        self._tarifa_hora = _a_decimal(tarifa_hora, "La tarifa")
+        if self._tarifa_hora <= 0:
+            raise ErrorValidacion("La tarifa del servicio debe ser mayor que cero.")
+        self._nombre = str(nombre).strip()
+        if not self._nombre:
+            raise ErrorValidacion("El nombre del servicio es obligatorio.")
+
+    @abstractmethod
+    def validar_parametros(self, duracion):
+        pass
+
+    @abstractmethod
+    def calcular_costo(
+        self, duracion=1, impuesto=IMPUESTO_ASESORIA,
+        descuento=DESCUENTO_ASESORIA
+    ):
+        pass
+
+    @abstractmethod
+    def describir(self):
+        pass
+
+
+class ServicioSalas(Servicio):
+    def validar_parametros(self, duracion):
+        horas = _a_decimal(duracion, "La duración")
+        if horas <= 0 or horas > 2:
+            raise ErrorValidacion("La reserva de sala debe durar entre 0 y 2 horas.")
+
+    def calcular_costo(self, duracion=1, impuesto=0, descuento=0):
+        self.validar_parametros(duracion)
+        return self._tarifa_hora * _a_decimal(duracion, "La duración")
+
+    def describir(self):
+        return f"Reserva de sala: {self._nombre}"
+
+
+class ServicioEquipos(Servicio):
+    def validar_parametros(self, duracion):
+        if _a_decimal(duracion, "La duración") <= 0:
+            raise ErrorValidacion("La duración del alquiler de equipos debe ser positiva.")
+
+    def calcular_costo(self, duracion=1, impuesto=0, descuento=0):
+        self.validar_parametros(duracion)
+        return self._tarifa_hora * _a_decimal(duracion, "La duración")
+
+    def describir(self):
+        return f"Alquiler de equipos: {self._nombre}"
+
+
+class ServicioAsesoria(Servicio):
+    IMPUESTO_PORCENTAJE = IMPUESTO_ASESORIA
+    DESCUENTO_PORCENTAJE = DESCUENTO_ASESORIA
+
+    def validar_parametros(self, duracion):
+        horas = _a_decimal(duracion, "La duración")
+        if horas <= 0 or horas > 24:
+            raise ErrorValidacion("La asesoría debe durar más de 0 y hasta 24 horas.")
+
+    def calcular_costo(
+        self, duracion=1, impuesto=IMPUESTO_PORCENTAJE,
+        descuento=DESCUENTO_PORCENTAJE
+    ):
+        """Calcula el total según las horas, el impuesto y el descuento indicados."""
+        self.validar_parametros(duracion)
+        horas = _a_decimal(duracion, "La duración")
+        porcentaje_impuesto = _a_decimal(impuesto, "El impuesto")
+        porcentaje_descuento = _a_decimal(descuento, "El descuento")
+        if not 0 <= porcentaje_impuesto <= 100 or not 0 <= porcentaje_descuento <= 100:
+            raise ErrorValidacion("Impuesto y descuento deben estar entre 0 y 100 por ciento.")
+        subtotal = self._tarifa_hora * horas
+        return (subtotal * (1 + porcentaje_impuesto / 100) *
+                (1 - porcentaje_descuento / 100)).quantize(Decimal("1"))
+
+    def describir(self):
+        return f"Asesoría especializada: {self._nombre}"
+
+
+class Reserva(Entidad):
+    ESTADOS = ("pendiente", "confirmada", "procesada", "cancelada")
+
+    def __init__(self, codigo, cliente, servicio, duracion):
+        super().__init__(codigo)
+        if not isinstance(cliente, Cliente) or not isinstance(servicio, Servicio):
+            raise ErrorReserva("La reserva requiere un cliente y un servicio válidos.")
+        try:
+            self._duracion = _a_decimal(duracion, "La duración")
+            servicio.validar_parametros(self._duracion)
+        except (InvalidOperation, ErrorValidacion) as error:
+            raise ErrorReserva("No se pudo validar la duración de la reserva.") from error
+        self.cliente = cliente
+        self.servicio = servicio
+        self.estado = "pendiente"
+        self.valor_asesoria = None
+
+    def confirmar(self):
+        """Cambia la reserva pendiente a confirmada."""
+        if self.estado != "pendiente":
+            raise ErrorReserva(f"No se puede confirmar una reserva en estado '{self.estado}'.")
+        self.estado = "confirmada"
+
+    def cancelar(self):
+        """Cancela una reserva que todavía no ha sido procesada."""
+        if self.estado in ("procesada", "cancelada"):
+            raise ErrorReserva(f"No se puede cancelar una reserva en estado '{self.estado}'.")
+        self.estado = "cancelada"
+
+    def procesar(
+        self, impuesto=IMPUESTO_ASESORIA, descuento=DESCUENTO_ASESORIA
+    ):
+        """Calcula y guarda el valor final de una reserva confirmada."""
+        if self.estado != "confirmada":
+            raise ErrorReserva("Solo se pueden procesar reservas confirmadas.")
+        try:
+            self.valor_asesoria = self.servicio.calcular_costo(self._duracion, impuesto, descuento)
+        except ErrorSoftwareFJ as error:
+            raise ErrorReserva("Falló el cálculo del costo de la reserva.") from error
+        else:
+            self.estado = "procesada"
+            return self.valor_asesoria
+        finally:
+            logging.getLogger("software_fj").info("Procesamiento de reserva %s finalizado (estado: %s).", self.codigo, self.estado)
+
+    @property
+    def duracion(self):
+        return self._duracion
+
+    def describir(self):
+        return f"Reserva {self.codigo}: {self.servicio.describir()} ({self.estado})"
+
+
+def _crear_logger():
+    """Configura el archivo local donde se registran eventos y errores."""
+    logger = logging.getLogger("software_fj")
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        ruta_log = os.path.join(os.path.dirname(os.path.abspath(__file__)), "software_fj.log")
+        manejador = logging.FileHandler(ruta_log, encoding="utf-8")
+        manejador.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+        logger.addHandler(manejador)
+    return logger
+
+
+def _simular_operaciones(logger):
+    """Ejecuta casos de dominio aislados y registra el resultado de cada operación."""
+    realizadas = 0
+    fallidas = 0
+
+    def ejecutar(nombre, accion, debe_fallar=False):
+        nonlocal realizadas, fallidas
+        try:
+            accion()
+        except ErrorSoftwareFJ as error:
+            realizadas += 1
+            if debe_fallar:
+                logger.warning("Simulación %02d: %s (fallo esperado: %s).",
+                               realizadas, nombre, error)
+            else:
+                fallidas += 1
+                logger.exception("Simulación %02d falló: %s.", realizadas, nombre)
+        except Exception:
+            realizadas += 1
+            fallidas += 1
+            logger.exception("Error inesperado en simulación: %s.", nombre)
+        else:
+            realizadas += 1
+            if debe_fallar:
+                fallidas += 1
+                logger.error("La simulación debía fallar y fue exitosa: %s.", nombre)
+            else:
+                logger.info("Simulación %02d exitosa: %s.", realizadas, nombre)
+
+    clientes = []
+
+    def registrar_cliente(identificacion, nombre):
+        if any(c.identificacion == identificacion for c in clientes):
+            raise ErrorValidacion("La identificación ya está registrada.")
+        cliente = Cliente(identificacion, nombre, "3001234567",
+                          "cliente@example.com", "Calle 1")
+        clientes.append(cliente)
+
+    ejecutar("registro válido de cliente",
+             lambda: registrar_cliente("900111222-1", "Cliente de prueba"))
+    ejecutar("rechazo de cliente incompleto",
+             lambda: Cliente("900111222-2", "", "3001234567",
+                             "cliente@example.com", "Calle 2"), True)
+    ejecutar("segundo registro válido de cliente",
+             lambda: registrar_cliente("900111222-3", "Otro cliente"))
+    ejecutar("rechazo de identificación duplicada",
+             lambda: registrar_cliente("900111222-1", "Duplicado"), True)
+
+    ejecutar("creación de servicio de salas",
+             lambda: ServicioSalas("sala", "Sala de reuniones", 50000))
+    ejecutar("creación de servicio de equipos",
+             lambda: ServicioEquipos("equipo", "Alquiler de equipos", 25000))
+    servicio = ServicioAsesoria("asesoria", "Asesoría técnica", 100000)
+    ejecutar("creación de servicio de asesoría",
+             lambda: servicio.validar_parametros(1))
+    ejecutar("rechazo de tarifa no válida",
+             lambda: ServicioAsesoria("invalido", "Servicio inválido", 0), True)
+    reserva = Reserva("simulacion-1", clientes[0], servicio, 1)
+
+    def procesar_reserva_valida():
+        reserva.confirmar()
+        reserva.procesar()
+
+    ejecutar("confirmación y procesamiento de reserva exitosa",
+             procesar_reserva_valida)
+    ejecutar("rechazo de duración inválida",
+             lambda: Reserva("simulacion-2", clientes[0], servicio, 0), True)
+
+    reserva_cancelable = Reserva("simulacion-3", clientes[1], servicio, 1)
+    ejecutar("cancelación de reserva pendiente", reserva_cancelable.cancelar)
+    ejecutar("rechazo de procesamiento sin confirmación",
+             lambda: Reserva("simulacion-4", clientes[1], servicio, 1).procesar(),
+             True)
+
+    logger.info("Simulación completa: %s operaciones, %s errores inesperados.",
+                realizadas, fallidas)
+    return realizadas, fallidas
 
 # Clase principal del software
 class SoftwareFJ:
 
     # Inicializar la ventana principal y los datos
     def __init__(self, ventana):
+        self.logger = _crear_logger()
         self.ventana = ventana
+        self.ventana.report_callback_exception = self._manejar_excepcion_interfaz
         self.ventana.title("SoftwareFJ")
         self.ventana.state("zoomed")
         
@@ -23,6 +345,11 @@ class SoftwareFJ:
             {"nit": "900123456-1", "cliente": "Comercializadora Andina", "celular": "3001234567", "correo": "contacto@andina.com", "direccion": "Calle 10 # 20-30"},
             {"nit": "901234567-2", "cliente": "Soluciones del Valle", "celular": "3102345678", "correo": "info@solucionesvalle.com", "direccion": "Carrera 5 # 12-40"},
             {"nit": "1023456789", "cliente": "Laura Martínez", "celular": "3203456789", "correo": "laura.martinez@example.com", "direccion": "Avenida 3 # 45-18"},
+        ]
+        self.clientes_objetos = [
+            Cliente(registro["nit"], registro["cliente"], registro["celular"],
+                    registro["correo"], registro["direccion"])
+            for registro in self.clientes
         ]
         
         self.empleados = [
@@ -49,14 +376,37 @@ class SoftwareFJ:
 
         # Base de datos de asesorías
         self.asesorias = []
+        self.reservas_asesoria = []
 
         # Variables para almacenar la reserva de sala seleccionada en el módulo de asesorías
         self.codigo_reserva_sala_asesoria = ""
         self.fecha_reserva_sala_asesoria = ""
         self.hora_inicio_reserva_sala_asesoria = ""
         
+        _simular_operaciones(self.logger)
+        self.logger.info("Aplicación Software FJ iniciada.")
+
         # Crear la interfaz gráfica del software
         self._crear_interfaz()
+
+    def _manejar_excepcion_interfaz(self, tipo, error, traza):
+        """Registra excepciones imprevistas de la interfaz y avisa al usuario."""
+        self.logger.error("Error no controlado en una acción de la interfaz.", exc_info=(tipo, error, traza))
+        messagebox.showerror("Error inesperado", "Ocurrió un error. Se registró en software_fj.log y la aplicación continúa.", parent=self.ventana)
+
+    def _registrar_error(self, mensaje, error=None):
+        if error is None:
+            self.logger.error(mensaje)
+        else:
+            self.logger.error("%s: %s", mensaje, error, exc_info=True)
+
+    def _mostrar_error(self, titulo, mensaje, parent=None):
+        self._registrar_error(f"{titulo}: {mensaje}")
+        messagebox.showerror(titulo, mensaje, parent=parent or self.ventana)
+
+    def _mostrar_advertencia(self, titulo, mensaje, parent=None):
+        self.logger.warning("%s: %s", titulo, mensaje)
+        messagebox.showwarning(titulo, mensaje, parent=parent or self.ventana)
 
     # Crear la interfaz gráfica del software
     def _crear_interfaz(self):
@@ -96,12 +446,8 @@ class SoftwareFJ:
         pestañas = ttk.Notebook(self.ventana)
         pestañas.pack(fill="both", expand=True, padx=24, pady=(0, 20))
 
-        secciones = (
-            ("Clientes", "Información de clientes"), 
-            ("Salas", "Información de salas"), 
-            ("Reserva de equipos", "Información de reservas de equipos"), 
-            ("Asesorías", "Información de asesorías")
-        )
+        secciones = (("Clientes", "Información de clientes"), ("Salas", "Información de salas"),
+                     ("Reserva de equipos", "Información de reservas de equipos"), ("Asesorías", "Información de asesorías"))
 
         # Crear cada pestaña y su contenido
         for titulo, descripcion in secciones:
@@ -175,25 +521,35 @@ class SoftwareFJ:
             self.tabla_clientes.delete(elemento)
         for cliente in self.clientes:
             self.tabla_clientes.insert("", "end", values=tuple(cliente.values()))
+        if hasattr(self, "campos_asesoria") and "cliente" in self.campos_asesoria:
+            self.campos_asesoria["cliente"].config(values=[cliente["cliente"] for cliente in self.clientes])
 
     # Crear un nuevo cliente a partir de los datos ingresados en el formulario
     def crear_cliente(self):
         cliente = {clave: campo.get().strip() for clave, campo in self.campos_cliente.items()}
 
         if not all(cliente.values()):
-            messagebox.showwarning("Datos incompletos", "Completa todos los campos para guardar el cliente.", parent=self.ventana)
+            self._mostrar_advertencia("Datos incompletos", "Completa todos los campos para guardar el cliente.")
             return
 
         if any(registro["nit"] == cliente["nit"] for registro in self.clientes):
-            messagebox.showwarning("Identificación duplicada", "Ya existe un cliente con ese NIT / C.C.", parent=self.ventana)
+            self._mostrar_advertencia("Identificación duplicada", "Ya existe un cliente con ese NIT / C.C.")
+            return
+
+        try:
+            cliente_objeto = Cliente(cliente["nit"], cliente["cliente"], cliente["celular"], cliente["correo"], cliente["direccion"])
+        except ErrorValidacion as error:
+            self._mostrar_error("Datos inválidos", str(error))
             return
 
         self.clientes.append(cliente)
+        self.clientes_objetos.append(cliente_objeto)
         self._actualizar_tabla_clientes()
 
         for campo in self.campos_cliente.values():
             campo.delete(0, tk.END)
 
+        self.logger.info("Cliente registrado: %s.", cliente_objeto.describir())
         messagebox.showinfo("Cliente guardado", f"Cliente {cliente['cliente']} registrado correctamente.", parent=self.ventana)
 
     # =========================================================
@@ -369,7 +725,7 @@ class SoftwareFJ:
 
         fecha, hora_inicio, hora_fin = intervalo
         if self._sala_ocupada(sala_seleccionada, fecha, hora_inicio, hora_fin):
-            messagebox.showwarning("Sala ocupada", f"La {sala_seleccionada} ya está reservada en ese horario.", parent=self.ventana)
+            self._mostrar_advertencia("Sala ocupada", f"La {sala_seleccionada} ya está reservada en ese horario.")
             self.campos_sala['sala'].set('')
 
     # Guardar una nueva reserva de sala a partir de los datos ingresados en el formulario
@@ -384,19 +740,19 @@ class SoftwareFJ:
 
         # Validar campos vacíos según el tipo de participante
         if not tipo:
-            messagebox.showwarning("Datos incompletos", "Selecciona el tipo de participante.", parent=self.ventana)
+            self._mostrar_advertencia("Datos incompletos", "Selecciona el tipo de participante.")
             return
 
         if not participante:
-            messagebox.showwarning("Datos incompletos", "Selecciona el participante de la reunión.", parent=self.ventana)
+            self._mostrar_advertencia("Datos incompletos", "Selecciona el participante de la reunión.")
             return
 
         if tipo == "Con Empleado" and not identificacion_empleado:
-            messagebox.showwarning("Datos incompletos", "Ingresa la identificación del empleado.", parent=self.ventana)
+            self._mostrar_advertencia("Datos incompletos", "Ingresa la identificación del empleado.")
             return
 
         if not fecha_texto or not hora_inicio_texto or not hora_fin_texto or not sala:
-            messagebox.showwarning("Datos incompletos", "Completa la fecha, el horario y la sala para guardar la reserva.", parent=self.ventana)
+            self._mostrar_advertencia("Datos incompletos", "Completa la fecha, el horario y la sala para guardar la reserva.")
             return
 
         try:
@@ -406,44 +762,40 @@ class SoftwareFJ:
             hora_apertura = datetime.strptime("08:00", "%H:%M")
             hora_cierre = datetime.strptime("20:00", "%H:%M")
         except ValueError:
-            messagebox.showerror(
-                "Formato inválido",
-                "Usa el formato DD/MM/AAAA para la fecha y HH:MM para las horas.",
-                parent=self.ventana
-            )
+            self._mostrar_error("Formato inválido", "Usa el formato DD/MM/AAAA para la fecha y HH:MM para las horas.")
             return
 
         # Validar que la hora de inicio y fin estén dentro del horario permitido (de 08:00 a 20:00)
         if hora_inicio < hora_apertura or hora_fin > hora_cierre:
-            messagebox.showerror("Horario inválido", "Las salas solo operan entre las 08:00 y las 20:00.", parent=self.ventana)
+            self._mostrar_error("Horario inválido", "Las salas solo operan entre las 08:00 y las 20:00.")
             return
 
         # Validar que la hora de inicio sea menor a la hora de fin y que la duración no exceda 2 horas
         if hora_inicio >= hora_fin:
-            messagebox.showerror("Error de tiempo", "La hora de finalización debe ser mayor a la hora de inicio.", parent=self.ventana)
+            self._mostrar_error("Error de tiempo", "La hora de finalización debe ser mayor a la hora de inicio.")
             return
 
         # Calcular la diferencia en horas entre la hora de inicio y la hora de fin
         diferencia_horas = (hora_fin - hora_inicio).total_seconds() / 3600
         if diferencia_horas > 2:
-            messagebox.showerror("Límite excedido", "Las reuniones no pueden ser mayores a 2 horas.", parent=self.ventana)
+            self._mostrar_error("Límite excedido", "Las reuniones no pueden ser mayores a 2 horas.")
             return
 
         # Verificar si la sala está ocupada en el intervalo de tiempo especificado
         if self._sala_ocupada(sala, fecha, hora_inicio, hora_fin):
-            messagebox.showwarning("Sala reservada", "La sala ya está reservada en ese horario.", parent=self.ventana)
+            self._mostrar_advertencia("Sala reservada", "La sala ya está reservada en ese horario.")
             return
 
         # Obtener la identificación del participante según el tipo de reunión
         if tipo == "Con Cliente":
             cliente = next((cliente for cliente in self.clientes if cliente['cliente'] == participante), None)
             if cliente is None:
-                messagebox.showerror("Cliente no encontrado", "Selecciona un cliente registrado.", parent=self.ventana)
+                self._mostrar_error("Cliente no encontrado", "Selecciona un cliente registrado.")
                 return
             identificacion = cliente['nit']
         else:
             if participante not in [empleado["nombre"] for empleado in self.empleados]:
-                messagebox.showerror("Empleado no encontrado", "Selecciona un empleado válido.", parent=self.ventana)
+                self._mostrar_error("Empleado no encontrado", "Selecciona un empleado válido.")
                 return
             identificacion = identificacion_empleado
 
@@ -468,6 +820,7 @@ class SoftwareFJ:
         }
 
         self.reservas_salas.append(reserva)
+        self.logger.info("Reserva de sala %s guardada para %s.", codigo, participante)
         self._actualizar_tabla_salas()
         
         # Limpiar los campos del formulario después de guardar la reserva
@@ -508,8 +861,7 @@ class SoftwareFJ:
         self.campos_equipo['cod_sala'].grid(row=1, column=0, sticky="ew")
         self.campos_equipo['cod_sala'].config(
             values=[r['codigo'] for r in self.reservas_salas],
-            postcommand=lambda: self.campos_equipo['cod_sala'].config(values=[r['codigo'] for r in self.reservas_salas])
-        )
+            postcommand=lambda: self.campos_equipo['cod_sala'].config(values=[r['codigo'] for r in self.reservas_salas]))
 
         # Selección de equipos o combinaciones
         ttk.Label(formulario, text="Equipos a Reservar").grid(row=2, column=0, sticky="w", pady=(8, 2))
@@ -543,7 +895,7 @@ class SoftwareFJ:
         combinacion = self.campos_equipo['equipos'].get().strip()
 
         if not cod_sala or not combinacion:
-            messagebox.showwarning("Datos incompletos", "Selecciona sala y equipo.", parent=self.ventana)
+            self._mostrar_advertencia("Datos incompletos", "Selecciona sala y equipo.")
             return
 
         eq_solicitados = []
@@ -560,7 +912,7 @@ class SoftwareFJ:
 
         sala_ref = next((r for r in self.reservas_salas if r['codigo'] == cod_sala), None)
         if not sala_ref:
-            messagebox.showerror("Error", "La sala seleccionada no existe.", parent=self.ventana)
+            self._mostrar_error("Error", "La sala seleccionada no existe.")
             return
 
         try:
@@ -568,7 +920,7 @@ class SoftwareFJ:
             h_ini_req = datetime.strptime(sala_ref['hora_inicio'], "%H:%M")
             h_fin_req = datetime.strptime(sala_ref['hora_fin'], "%H:%M")
         except ValueError:
-            messagebox.showerror("Error", "Formato de hora incorrecto en la reserva de sala.", parent=self.ventana)
+            self._mostrar_error("Error", "Formato de hora incorrecto en la reserva de sala.")
             return
 
         # Validar stock máximo de 12 unidades por equipo en horarios superpuestos
@@ -583,12 +935,13 @@ class SoftwareFJ:
                         if (h_ini_req < he_fin) and (h_fin_req > he_ini):
                             ocupados += 1
             if ocupados >= 12:
-                messagebox.showerror("Sin stock", f"No hay '{eq}' disponibles (Límite 12 superado).", parent=self.ventana)
+                self._mostrar_error("Sin stock", f"No hay '{eq}' disponibles (Límite 12 superado).")
                 return
 
         for eq in eq_solicitados:
             self.reservas_equipos.append({"codigo_sala": cod_sala, "elemento": eq})
 
+        self.logger.info("Equipos asignados a la reserva %s: %s.", cod_sala, eq_solicitados)
         self._actualizar_tabla_equipos()
         self.campos_equipo['cod_sala'].set('')
         self.campos_equipo['equipos'].set('')
@@ -622,36 +975,49 @@ class SoftwareFJ:
         self.campos_asesoria['tipo'].grid(row=1, column=0, sticky="ew")
         self.campos_asesoria['tipo'].bind("<<ComboboxSelected>>", self._actualizar_empleados_asesoria)
 
+        ttk.Label(formulario, text="Cliente").grid(row=2, column=0, sticky="w", pady=(8, 2))
+        self.campos_asesoria['cliente'] = ttk.Combobox(formulario, values=[c["cliente"] for c in self.clientes], state="readonly")
+        self.campos_asesoria['cliente'].grid(row=3, column=0, sticky="ew")
+
         # Campos para seleccionar el empleado a cargo de la asesoría
-        ttk.Label(formulario, text="Empleado a cargo").grid(row=2, column=0, sticky="w", pady=(8, 2))
+        ttk.Label(formulario, text="Empleado a cargo").grid(row=4, column=0, sticky="w", pady=(8, 2))
         self.campos_asesoria['empleado'] = ttk.Combobox(formulario, state="readonly")
-        self.campos_asesoria['empleado'].grid(row=3, column=0, sticky="ew")
+        self.campos_asesoria['empleado'].grid(row=5, column=0, sticky="ew")
 
         # Campos para seleccionar el lugar de la asesoría
-        ttk.Label(formulario, text="Lugar de reunión").grid(row=4, column=0, sticky="w", pady=(8, 2))
+        ttk.Label(formulario, text="Lugar de reunión").grid(row=6, column=0, sticky="w", pady=(8, 2))
         self.campos_asesoria['lugar'] = ttk.Combobox(formulario, values=["En sala de reunión", "Lugar designado por cliente"], state="readonly")
-        self.campos_asesoria['lugar'].grid(row=5, column=0, sticky="ew")
+        self.campos_asesoria['lugar'].grid(row=7, column=0, sticky="ew")
         self.campos_asesoria['lugar'].bind("<<ComboboxSelected>>", self._actualizar_lugar_asesoria)
 
         self.boton_seleccionar_reserva_asesoria = ttk.Button(formulario, text="Seleccionar reserva de sala", command=self._mostrar_reservas_salas_asesoria)
-        self.boton_seleccionar_reserva_asesoria.grid(row=6, column=0, sticky="ew", pady=(8, 0))
+        self.boton_seleccionar_reserva_asesoria.grid(row=8, column=0, sticky="ew", pady=(8, 0))
         self.boton_seleccionar_reserva_asesoria.grid_remove()
 
         # Etiqueta para mostrar la reserva de sala seleccionada en el módulo de asesorías
         self.etiqueta_reserva_asesoria = ttk.Label(formulario, text="Sin reserva de sala seleccionada")
-        self.etiqueta_reserva_asesoria.grid(row=7, column=0, sticky="w", pady=(4, 0))
+        self.etiqueta_reserva_asesoria.grid(row=9, column=0, sticky="w", pady=(4, 0))
         self.etiqueta_reserva_asesoria.grid_remove()
 
-        # Campos para ingresar la fecha y hora de la asesoría si no se selecciona una reserva de sala
-        ttk.Label(formulario, text="Fecha de la asesoría (DD/MM/AAAA)").grid(row=8, column=0, sticky="w", pady=(8, 2))
-        self.campos_asesoria['fecha'] = ttk.Entry(formulario)
-        self.campos_asesoria['fecha'].grid(row=9, column=0, sticky="ew")
+        # Fecha y hora agrupadas en dos columnas
+        fecha_hora = ttk.Frame(formulario)
+        fecha_hora.grid(row=10, column=0, sticky="ew", pady=(8, 0))
+        fecha_hora.columnconfigure(0, weight=1)
+        fecha_hora.columnconfigure(1, weight=1)
 
-        # Campos para ingresar la hora de inicio de la asesoría
-        ttk.Label(formulario, text="Hora de inicio (HH:MM)").grid(row=10, column=0, sticky="w", pady=(8, 2))
-        self.campos_asesoria['hora_inicio'] = ttk.Entry(formulario)
-        self.campos_asesoria['hora_inicio'].grid(row=11, column=0, sticky="ew")
+        ttk.Label(fecha_hora, text="Fecha").grid(row=0, column=0, sticky="w", pady=(0, 2))
+        self.campos_asesoria['fecha'] = ttk.Entry(fecha_hora)
+        self.campos_asesoria['fecha'].grid(row=1, column=0, sticky="ew", padx=(0, 4))
+        self._configurar_marca_agua(self.campos_asesoria['fecha'], "DD/MM/AAAA")
 
+        ttk.Label(fecha_hora, text="Hora de inicio").grid(row=0, column=1, sticky="w", padx=(4, 0), pady=(0, 2))
+        self.campos_asesoria['hora_inicio'] = ttk.Entry(fecha_hora)
+        self.campos_asesoria['hora_inicio'].grid(row=1, column=1, sticky="ew", padx=(4, 0))
+        self._configurar_marca_agua(self.campos_asesoria['hora_inicio'], "HH:MM")
+
+        self.etiqueta_info_asesoria = ttk.Label(formulario, text="Valor hora de asesoria $100.000 sin IVA y descuento 10%", justify="left")
+        self.etiqueta_info_asesoria.grid(row=11, column=0, sticky="ew", pady=(8, 2))
+        formulario.bind("<Configure>", self._ajustar_ancho_info_asesoria)
         # Botón para guardar la asesoría
         ttk.Button(formulario, text="Guardar asesoría", command=self.guardar_asesoria, style="Guardar.TButton").grid(row=12, column=0, sticky="ew", pady=(18, 0))
 
@@ -662,10 +1028,10 @@ class SoftwareFJ:
         bloque_asesorias.rowconfigure(0, weight=1)
 
         # Tabla de asesorías
-        columnas = ("codigo", "tipo", "empleado", "lugar", "reserva", "fecha", "hora")
+        columnas = ("codigo", "tipo", "empleado", "lugar", "reserva", "fecha", "hora", "duracion", "valor_asesoria")
         self.tabla_asesorias = ttk.Treeview(bloque_asesorias, columns=columnas, show="headings")
-        encabezados = {"codigo": "Código", "tipo": "Tipo de asesoría", "empleado": "Empleado encargado", "lugar": "Lugar", "reserva": "Código reserva sala", "fecha": "Fecha", "hora": "Hora"}
-        anchos = {"codigo": 110, "tipo": 160, "empleado": 160, "lugar": 170, "reserva": 140, "fecha": 90, "hora": 80}
+        encabezados = {"codigo": "Código", "tipo": "Tipo de asesoría", "empleado": "Empleado encargado", "lugar": "Lugar", "reserva": "Código reserva sala", "fecha": "Fecha", "hora": "Hora", "duracion": "Horas", "valor_asesoria": "Valor final (COP)"}
+        anchos = {"codigo": 110, "tipo": 160, "empleado": 160, "lugar": 170, "reserva": 140, "fecha": 90, "hora": 80, "duracion": 65, "valor_asesoria": 130}
 
         for columna in columnas:
             self.tabla_asesorias.heading(columna, text=encabezados[columna])
@@ -677,6 +1043,10 @@ class SoftwareFJ:
         barra.grid(row=0, column=1, sticky="ns")
 
         self._actualizar_tabla_asesorias()
+
+    def _ajustar_ancho_info_asesoria(self, evento):
+        """Adapta el ajuste de línea del mensaje al ancho del formulario."""
+        self.etiqueta_info_asesoria.configure(wraplength=max(1, evento.width - 32))
 
     # Actualizar la lista de empleados disponibles según el tipo de asesoría seleccionado
     def _actualizar_empleados_asesoria(self, evento=None):
@@ -717,7 +1087,7 @@ class SoftwareFJ:
     # Mostrar la ventana con las reservas de salas disponibles para asociar a una asesoría
     def _mostrar_reservas_salas_asesoria(self):
         if not self.reservas_salas:
-            messagebox.showwarning("Sin reservas de sala", "No hay reservas de sala disponibles para seleccionar.", parent=self.ventana)
+            self._mostrar_advertencia("Sin reservas de sala", "No hay reservas de sala disponibles para seleccionar.")
             return
 
         ventana_reservas = tk.Toplevel(self.ventana)
@@ -779,49 +1149,78 @@ class SoftwareFJ:
 
         ventana_modal.destroy()
 
+    def _configurar_marca_agua(self, campo, texto):
+        """Añade una marca de agua que se quita al enfocar el campo."""
+        campo.marca_agua = texto
+        campo.insert(0, texto)
+        campo.configure(foreground="#808080")
+        campo.bind("<FocusIn>", lambda evento: self._quitar_marca_agua(evento.widget))
+        campo.bind("<FocusOut>", lambda evento: self._restaurar_marca_agua(evento.widget))
+
+    def _quitar_marca_agua(self, campo):
+        """Retira el texto de ayuda antes de que el usuario escriba."""
+        if campo.cget("state") == "readonly":
+            return
+        if campo.get() == campo.marca_agua:
+            campo.delete(0, tk.END)
+            campo.configure(foreground="black")
+
+    def _restaurar_marca_agua(self, campo):
+        """Restaura la marca de agua si el campo queda vacío."""
+        if campo.cget("state") == "readonly":
+            return
+        if not campo.get().strip():
+            campo.insert(0, campo.marca_agua)
+            campo.configure(foreground="#808080")
+
     # Establecer el valor de un campo de texto que puede estar en modo de solo lectura
     def _establecer_campo_asesoria(self, campo, valor):
         estado_original = campo.cget("state")
         campo.config(state="normal")
         campo.delete(0, tk.END)
-        campo.insert(0, valor)
+        if valor:
+            campo.insert(0, valor)
+            campo.configure(foreground="black")
+        else:
+            campo.insert(0, campo.marca_agua)
+            campo.configure(foreground="#808080")
         campo.config(state=estado_original)
 
     # Guardar una nueva asesoría a partir de los datos ingresados en el formulario
     def guardar_asesoria(self):
+        """Valida los datos, calcula una hora de asesoría y guarda la reserva."""
         tipo = self.campos_asesoria['tipo'].get().strip()
+        nombre_cliente = self.campos_asesoria['cliente'].get().strip()
         empleado = self.campos_asesoria['empleado'].get().strip()
         lugar = self.campos_asesoria['lugar'].get().strip()
         fecha_texto = self.campos_asesoria['fecha'].get().strip()
         hora_inicio = self.campos_asesoria['hora_inicio'].get().strip()
 
-        if not all((tipo, empleado, lugar)):
-            messagebox.showwarning(
-                "Datos incompletos",
-                "Completa el tipo de asesoría, el empleado y el lugar de reunión.",
-                parent=self.ventana
-            )
+        if not all((tipo, nombre_cliente, empleado, lugar)):
+            self._mostrar_advertencia("Datos incompletos", "Completa el tipo de asesoría, el cliente, el empleado y el lugar.")
             return
 
-        empleado_valido = any(
-            registro['nombre'] == empleado and tipo in registro['especialidades']
-            for registro in self.empleados
-        )
+        cliente = next((r for r in self.clientes_objetos if r.nombre == nombre_cliente), None)
+        if cliente is None:
+            self._mostrar_error("Cliente no disponible", "Selecciona un cliente registrado.")
+            return
+
+        empleado_valido = any(r['nombre'] == empleado and tipo in r['especialidades'] for r in self.empleados)
         if not empleado_valido:
-            messagebox.showerror(
-                "Empleado no disponible",
-                "Selecciona un empleado con la especialidad requerida.",
-                parent=self.ventana
-            )
+            self._mostrar_error("Empleado no disponible", "Selecciona un empleado con la especialidad requerida.")
             return
 
         if lugar == "En sala de reunión":
             if not self.codigo_reserva_sala_asesoria:
-                messagebox.showwarning(
-                    "Reserva requerida",
-                    "Selecciona una reserva de sala para la asesoría.",
-                    parent=self.ventana
-                )
+                self._mostrar_advertencia("Reserva requerida", "Selecciona una reserva de sala para la asesoría.")
+                return
+            reserva_sala = next((r for r in self.reservas_salas if r.get("codigo") == self.codigo_reserva_sala_asesoria), None)
+            if reserva_sala is None:
+                self._mostrar_error("Reserva no disponible", "La reserva de sala seleccionada ya no está disponible.")
+                return
+            if (reserva_sala.get("tipo") == "Con Cliente" and
+                    reserva_sala.get("identificacion") != cliente.identificacion):
+                self._mostrar_error("Cliente no coincide", "Selecciona el mismo cliente asociado a la reserva de sala.")
                 return
             fecha_asesoria = self.fecha_reserva_sala_asesoria
             hora_asesoria = self.hora_inicio_reserva_sala_asesoria
@@ -831,20 +1230,22 @@ class SoftwareFJ:
                 fecha_asesoria = datetime.strptime(fecha_texto, "%d/%m/%Y").strftime("%d/%m/%Y")
                 datetime.strptime(hora_inicio, "%H:%M")
             except ValueError:
-                messagebox.showerror(
-                    "Fecha u hora inválida",
-                    "Ingresa la fecha en formato DD/MM/AAAA y la hora en formato HH:MM.",
-                    parent=self.ventana
-                )
+                self._mostrar_error("Fecha u hora inválida", "Ingresa la fecha en formato DD/MM/AAAA y la hora en formato HH:MM.")
                 return
             hora_asesoria = hora_inicio
             codigo_reserva = ""
         else:
-            messagebox.showerror(
-                "Lugar inválido",
-                "Selecciona un lugar de reunión válido.",
-                parent=self.ventana
-            )
+            self._mostrar_error("Lugar inválido", "Selecciona un lugar de reunión válido.")
+            return
+
+        try:
+            duracion = DURACION_ASESORIA
+            impuesto = ServicioAsesoria.IMPUESTO_PORCENTAJE
+            descuento = ServicioAsesoria.DESCUENTO_PORCENTAJE
+            servicio = ServicioAsesoria(tipo, tipo, Decimal("100000"))
+        except (InvalidOperation, ErrorSoftwareFJ) as error:
+            self._mostrar_error("Costo inválido", "La duración debe ser un número válido.")
+            self._registrar_error("No se pudieron validar los parámetros del costo.", error)
             return
 
         codigos_existentes = {asesoria["codigo"] for asesoria in self.asesorias}
@@ -854,9 +1255,19 @@ class SoftwareFJ:
             numero += 1
             codigo_asesoria = f"asesoria-{numero}"
 
+        try:
+            reserva_objeto = Reserva(codigo_asesoria, cliente, servicio, duracion)
+            reserva_objeto.confirmar()
+            costo = reserva_objeto.procesar(impuesto, descuento)
+        except ErrorSoftwareFJ as error:
+            self._mostrar_error("No se pudo procesar la asesoría", str(error))
+            self._registrar_error("Error controlado al crear la reserva de asesoría.", error)
+            return
+
         asesoria = {
             "codigo": codigo_asesoria,
             "tipo": tipo,
+            "cliente": cliente.nombre,
             "empleado": empleado,
             "lugar": lugar,
             "codigo_reserva_sala": codigo_reserva,
@@ -864,11 +1275,17 @@ class SoftwareFJ:
             "hora_inicio_reserva_sala": self.hora_inicio_reserva_sala_asesoria if codigo_reserva else "",
             "fecha": fecha_asesoria,
             "hora_inicio": hora_asesoria,
+            "duracion": str(duracion),
+            "valor_asesoria": str(reserva_objeto.valor_asesoria),
         }
         self.asesorias.append(asesoria)
+        self.reservas_asesoria.append(reserva_objeto)
         self._actualizar_tabla_asesorias()
+        self.logger.info("Asesoría %s guardada para %s. Total: %s COP; estado: %s.", codigo_asesoria, cliente.nombre, costo, reserva_objeto.estado)
+        valor_final = f"{costo:,.0f}".replace(",", ".")
 
         self.campos_asesoria['tipo'].set("")
+        self.campos_asesoria['cliente'].set("")
         self.campos_asesoria['empleado'].set("")
         self.campos_asesoria['empleado'].config(values=[])
         self.campos_asesoria['lugar'].set("")
@@ -877,10 +1294,10 @@ class SoftwareFJ:
         self.campos_asesoria['hora_inicio'].config(state="normal")
         self.boton_seleccionar_reserva_asesoria.grid_remove()
         self.etiqueta_reserva_asesoria.grid_remove()
-
         messagebox.showinfo(
             "Asesoría guardada",
-            f"La asesoría se guardó con el código {codigo_asesoria}.",
+            f"La asesoría se guardó con el código {codigo_asesoria}.\n"
+            f"Valor final: {valor_final} COP (sin IVA y con descuento del 10%).",
             parent=self.ventana
         )
 
@@ -889,19 +1306,10 @@ class SoftwareFJ:
         for elemento in self.tabla_asesorias.get_children():
             self.tabla_asesorias.delete(elemento)
         for asesoria in self.asesorias:
-            self.tabla_asesorias.insert(
-                "",
-                "end",
-                values=(
-                    asesoria["codigo"],
-                    asesoria["tipo"],
-                    asesoria["empleado"],
-                    asesoria["lugar"],
-                    asesoria["codigo_reserva_sala"],
-                    asesoria["fecha"],
-                    asesoria["hora_inicio"],
-                )
-            )
+            columnas = ("codigo", "tipo", "empleado", "lugar", "codigo_reserva_sala", "fecha", "hora_inicio", "duracion")
+            valores = [asesoria[campo] for campo in columnas]
+            valores.append(f"{Decimal(asesoria['valor_asesoria']):,.0f}".replace(",", ".") + " COP")
+            self.tabla_asesorias.insert("", "end", values=valores)
 
     # Iniciar el ciclo principal de eventos de Tkinter
     def ejecutar(self):
